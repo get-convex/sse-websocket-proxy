@@ -1,0 +1,8 @@
+packages:
+  - sse-proxied-websocket
+  - sse-ws-proxy
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd

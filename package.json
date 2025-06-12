@@ -1,0 +1,21 @@
+{
+  "name": "sse-ws-proxy-meta",
+  "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "lint": "prettier --c \"**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.8.1",
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "tsdown": "^0.1.0",
+    "typescript": "5.8.2"
+  },
+  "dependencies": {}
+}

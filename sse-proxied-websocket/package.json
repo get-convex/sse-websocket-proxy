@@ -1,0 +1,34 @@
+{
+  "name": "sse-proxied-websocket",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.8.1",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "tsx": "^4.7.1"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./toolDescriptions": {
+      "import": "./dist/toolDescriptions.js",
+      "require": "./dist/toolDescriptions.cjs"
+    },
+    "./package.json": "./package.json"
+  }
+}
