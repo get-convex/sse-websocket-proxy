@@ -318,4 +318,55 @@ describe("Invalid State Transitions", () => {
       await proxy.stop();
     }
   });
+
+  it("should throw InvalidAccessError when calling close(1001)", async () => {
+    const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
+    const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
+    
+    const proxyPort = await getPort();
+    const backendPort = await getPort();
+    
+    // Start a real backend and proxy
+    const testBackend = await WSTestBackend.create({ port: backendPort });
+    const proxy = new SSEWebSocketProxy({
+      port: proxyPort,
+      backendUrl: `http://localhost:${backendPort}`,
+    });
+    
+    await proxy.start();
+    
+    try {
+      const backendUrl = `ws://localhost:${backendPort}`;
+      
+      // Wait for connection to be established
+      simulatedWs = new SimulatedWebsocket(backendUrl, undefined, `http://localhost:${proxyPort}`);
+      
+      await new Promise<void>((resolve) => {
+        simulatedWs.addEventListener("open", () => {
+          resolve();
+        });
+      });
+      
+      expect(simulatedWs.readyState).toBe(OPEN);
+      
+      // Should throw InvalidAccessError when trying to close with 1001
+      // This matches native Node.js WebSocket behavior
+      expect(() => {
+        simulatedWs.close(1001, "Page unloading");
+      }).toThrow();
+      
+      // Verify the error is a DOMException with name "InvalidAccessError"
+      try {
+        simulatedWs.close(1001, "Page unloading");
+        throw new Error("Should have thrown");
+      } catch (error: any) {
+        expect(error.name).toBe("InvalidAccessError");
+        expect(error.constructor.name).toBe("DOMException");
+      }
+      
+    } finally {
+      await testBackend.stop();
+      await proxy.stop();
+    }
+  });
 });

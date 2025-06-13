@@ -59,7 +59,6 @@ describe("Close Code Propagation", () => {
   it("should handle different close codes correctly", async () => {
     const testCases = [
       { code: 1000, reason: "Normal closure" },
-      { code: 1001, reason: "Going away" },
       { code: 3000, reason: "Custom application close" },
       { code: 4999, reason: "Another custom close" }
     ];
@@ -187,7 +186,6 @@ describe("Close Code Propagation", () => {
   it("should correctly set wasClean property based on close codes", async () => {
     const testCases = [
       { code: 1000, reason: "Normal closure", expectedWasClean: true },
-      { code: 1001, reason: "Going away", expectedWasClean: true },
       { code: 1002, reason: "Protocol error", expectedWasClean: true },
       { code: 1003, reason: "Unsupported data", expectedWasClean: true },
       { code: 4000, reason: "Custom close", expectedWasClean: false },

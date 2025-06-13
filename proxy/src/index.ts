@@ -1,4 +1,4 @@
-import WebSocket, { WebSocketServer } from 'ws'
+import WebSocket from 'ws'
 import { IncomingMessage, ServerResponse, Server, createServer } from 'http'
 
 export interface ProxyConfig {
@@ -130,7 +130,12 @@ export class SSEWebSocketProxy {
     }, this.config.keepaliveInterval!)
   }
 
-  private handleMessageSend(req: IncomingMessage, res: ServerResponse): void {
+  private async handleRequestWithSession<T>(
+    req: IncomingMessage,
+    res: ServerResponse,
+    options: { requireOpenWebSocket?: boolean } = {},
+    handler: (client: Client, data: T) => void | Promise<void>
+  ): Promise<void> {
     const sessionId = req.headers['x-session-id'] as string
 
     if (!sessionId) {
@@ -146,7 +151,7 @@ export class SSEWebSocketProxy {
       return
     }
 
-    if (client.websocket.readyState !== WebSocket.OPEN) {
+    if (options.requireOpenWebSocket && client.websocket.readyState !== WebSocket.OPEN) {
       res.writeHead(503, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: 'WebSocket not connected' }))
       return
@@ -158,52 +163,55 @@ export class SSEWebSocketProxy {
       body += chunk.toString()
     })
 
-    req.on('end', () => {
+    req.on('end', async () => {
+      let data: T
       try {
-        const message = JSON.parse(body)
+        data = JSON.parse(body)
+      } catch (error) {
+        console.error('Error parsing JSON request:', error)
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Invalid JSON' }))
+        return
+      }
+
+      // Call the handler - any errors here should crash, not be caught
+      await handler(client, data)
+    })
+  }
+
+  private handleMessageSend(req: IncomingMessage, res: ServerResponse): void {
+    this.handleRequestWithSession(
+      req,
+      res,
+      { requireOpenWebSocket: true },
+      (client, message: any) => {
         client.websocket.send(JSON.stringify(message))
         client.lastActivity = Date.now()
 
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ success: true }))
 
-        console.log(`Sent message for session ${sessionId}:`, message.type)
-      } catch (error) {
-        console.error('Error sending message:', error)
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Invalid JSON' }))
+        console.log(`Sent message for session ${client.sessionId}:`, message.type)
       }
-    })
+    )
   }
 
   private handleCloseRequest(req: IncomingMessage, res: ServerResponse): void {
-    const sessionId = req.headers['x-session-id'] as string
+    this.handleRequestWithSession(
+      req,
+      res,
+      {}, // Don't require open WebSocket - we might want to close during CONNECTING
+      (client, data: { code?: number; reason?: string }) => {
+        const { code = 1000, reason = '' } = data
 
-    if (!sessionId) {
-      res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Missing X-Session-Id header' }))
-      return
-    }
-
-    const client = this.clients.get(sessionId)
-    if (!client) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Session not found' }))
-      return
-    }
-
-    // Read the request body
-    let body = ''
-    req.on('data', (chunk) => {
-      body += chunk.toString()
-    })
-
-    req.on('end', () => {
-      try {
-        const { code = 1000, reason = '' } = JSON.parse(body)
+        // Track if response has been sent
+        let responseSent = false
 
         // Set up close event listener to capture actual close info
         const closeHandler = (actualCode: number, actualReason: Buffer) => {
+          if (responseSent) return
+          responseSent = true
+
           const wasClean = actualCode >= 1000 && actualCode <= 1003
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(
@@ -217,6 +225,9 @@ export class SSEWebSocketProxy {
 
         // Set up timeout in case WebSocket doesn't close cleanly
         const timeout = setTimeout(() => {
+          if (responseSent) return
+          responseSent = true
+
           client.websocket.removeListener('close', closeHandler)
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(
@@ -234,8 +245,8 @@ export class SSEWebSocketProxy {
         })
 
         // Close the backend WebSocket with the requested code/reason
-        console.log(`Closing WebSocket for session ${sessionId} with code ${code}, reason: ${reason}`)
-        
+        console.log(`Closing WebSocket for session ${client.sessionId} with code ${code}, reason: ${reason}`)
+
         // Handle different WebSocket states
         if (client.websocket.readyState === WebSocket.CONNECTING) {
           // Still connecting - terminate to avoid error
@@ -245,12 +256,8 @@ export class SSEWebSocketProxy {
           client.websocket.close(code, reason)
         }
         // If already closing or closed, do nothing
-      } catch (error) {
-        console.error('Error parsing close request:', error)
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Invalid JSON' }))
       }
-    })
+    )
   }
 
   private handleHealthCheck(_req: IncomingMessage, res: ServerResponse): void {
@@ -325,19 +332,19 @@ export class SSEWebSocketProxy {
       })
 
       // Clean up the client connection
-      this.cleanupClient(sessionId)
+      this.cleanupClient(sessionId, 'websocket-closed')
     })
   }
 
   private setupSSECleanup(req: IncomingMessage, res: ServerResponse, sessionId: string): void {
     res.on('close', () => {
       console.log(`SSE connection closed for session: ${sessionId}`)
-      this.cleanupClient(sessionId)
+      this.cleanupClient(sessionId, 'sse-closed')
     })
 
     req.on('aborted', () => {
       console.log(`SSE connection aborted for session: ${sessionId}`)
-      this.cleanupClient(sessionId)
+      this.cleanupClient(sessionId, 'sse-aborted')
     })
   }
 
@@ -348,17 +355,24 @@ export class SSEWebSocketProxy {
     res.write(message)
   }
 
-  private cleanupClient(sessionId: string): void {
+  private cleanupClient(sessionId: string, reason: 'sse-closed' | 'sse-aborted' | 'websocket-closed' | 'timeout' = 'websocket-closed'): void {
     const client = this.clients.get(sessionId)
     if (client) {
       if (client.websocket && client.websocket.readyState === WebSocket.OPEN) {
-        client.websocket.close()
+        // If SSE connection was terminated (tab close, network issue), send 1001 "going away"
+        if (reason === 'sse-closed' || reason === 'sse-aborted') {
+          console.log(`SSE connection ${reason} for session ${sessionId}, closing backend with 1001`)
+          client.websocket.close(1001, 'Client going away')
+        } else {
+          // Normal cleanup - let WebSocket close naturally
+          client.websocket.close()
+        }
       }
       if (!client.sseResponse.destroyed) {
         client.sseResponse.end()
       }
       this.clients.delete(sessionId)
-      console.log(`Cleaned up session: ${sessionId}`)
+      console.log(`Cleaned up session: ${sessionId} (reason: ${reason})`)
     }
   }
 
@@ -367,7 +381,7 @@ export class SSEWebSocketProxy {
     for (const [sessionId, client] of this.clients.entries()) {
       if (now - client.lastActivity > this.config.connectionTimeout!) {
         console.log(`Cleaning up inactive session: ${sessionId}`)
-        this.cleanupClient(sessionId)
+        this.cleanupClient(sessionId, 'timeout')
       }
     }
   }
@@ -449,7 +463,7 @@ export class SSEWebSocketProxy {
 
     // Close all client connections
     for (const [sessionId, client] of this.clients.entries()) {
-      this.cleanupClient(sessionId)
+      this.cleanupClient(sessionId, 'websocket-closed')
     }
 
     // Close the HTTP server
