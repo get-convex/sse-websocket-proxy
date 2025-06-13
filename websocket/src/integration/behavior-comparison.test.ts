@@ -182,4 +182,129 @@ describe("WebSocket Behavior Comparison", () => {
       );
     }
   });
+
+  it("should handle identical message transmission for various data types", async () => {
+    const messagesToTest = [
+      // Simple strings
+      "Hello World",
+      "Simple text message",
+      
+      // JSON strings
+      JSON.stringify({ type: "test", message: "Hello from client" }),
+      JSON.stringify({ id: 42, data: [1, 2, 3], nested: { key: "value" } }),
+      
+      // Special characters and unicode
+      "Message with émojis 🎉 and spëcial chars: áéíóú",
+      "Line breaks\nand\ttabs\rwork",
+      
+      // Edge cases
+      "",
+      " ",
+      "42",
+      "3.14159",
+      JSON.stringify("just a string in JSON"),
+      JSON.stringify(null),
+      JSON.stringify(true),
+      
+      // Long message
+      "This is a longer message that contains multiple words and should be transmitted correctly through the WebSocket proxy without any data corruption or truncation issues."
+    ];
+
+    await runBehaviorComparison(
+      "message transmission for various data types",
+      async (WebSocketClass, backendUrl, isSimulated, clientConnection) => {
+        const ws = new WebSocketClass(backendUrl);
+        
+        // Wait for connection to open
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
+          
+          ws.onopen = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          
+          ws.onerror = (error: any) => {
+            clearTimeout(timeout);
+            reject(new Error(`WebSocket error: ${error.message || 'Unknown error'}`));
+          };
+        });
+
+        // Get the backend connection
+        const backendConn = await clientConnection;
+        
+        // Set up a message queue to handle sequential message verification
+        const receivedMessages: string[] = [];
+        let messageIndex = 0;
+        let currentResolve: (() => void) | null = null;
+        let currentReject: ((error: Error) => void) | null = null;
+        let currentTimeout: NodeJS.Timeout | null = null;
+        
+        // Single message handler that processes messages in order
+        backendConn.onMessage((receivedData: string) => {
+          receivedMessages.push(receivedData);
+          
+          // If we're waiting for a message, check if this is the expected one
+          if (currentResolve && messageIndex < messagesToTest.length) {
+            const expectedMessage = messagesToTest[messageIndex];
+            const actualMessage = receivedMessages[messageIndex];
+            
+            if (actualMessage !== undefined) {
+              if (currentTimeout) {
+                clearTimeout(currentTimeout);
+                currentTimeout = null;
+              }
+              
+              try {
+                expect(actualMessage).toBe(expectedMessage);
+                messageIndex++;
+                const resolve = currentResolve;
+                currentResolve = null;
+                currentReject = null;
+                resolve();
+              } catch (error) {
+                const reject = currentReject;
+                currentResolve = null;
+                currentReject = null;
+                reject?.(error as Error);
+              }
+            }
+          }
+        });
+        
+        // Send all messages and verify them sequentially
+        for (let i = 0; i < messagesToTest.length; i++) {
+          const testMessage = messagesToTest[i];
+          
+          // Send the test message
+          ws.send(testMessage);
+
+          // Wait for this specific message to be received and verified
+          await new Promise<void>((resolve, reject) => {
+            // If we already received this message, verify it immediately
+            if (receivedMessages[i] !== undefined) {
+              try {
+                expect(receivedMessages[i]).toBe(testMessage);
+                messageIndex = Math.max(messageIndex, i + 1);
+                resolve();
+              } catch (error) {
+                reject(error as Error);
+              }
+              return;
+            }
+            
+            // Otherwise, wait for the message handler to process it
+            currentResolve = resolve;
+            currentReject = reject;
+            currentTimeout = setTimeout(() => {
+              currentResolve = null;
+              currentReject = null;
+              currentTimeout = null;
+              reject(new Error(`Message receive timeout for: "${testMessage.slice(0, 30)}${testMessage.length > 30 ? '...' : ''}"`));
+            }, 5000);
+          });
+        }
+      },
+    );
+  });
 });
