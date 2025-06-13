@@ -1,7 +1,6 @@
 import WsWebSocket from 'ws'
 import { IncomingMessage, ServerResponse, Server, createServer } from 'http'
 import {
-  encodeConnectedMessage,
   encodePingMessage,
   encodeWebSocketConnectedMessage,
   encodeDataMessage,

@@ -57,7 +57,7 @@ describe("Simple Integration Test", () => {
     simulatedWs = new SimulatedWebsocket(
       `ws://localhost:${BACKEND_PORT}`,
       undefined,
-      `http://localhost:${PROXY_PORT}`
+      `http://localhost:${PROXY_PORT}`,
     );
 
     // Wait for the backend to receive the WebSocket connection

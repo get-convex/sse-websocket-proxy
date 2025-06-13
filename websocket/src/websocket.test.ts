@@ -36,4 +36,3 @@ describe("SimulatedWebsocket Basic Tests", () => {
     ws.close();
   });
 });
-

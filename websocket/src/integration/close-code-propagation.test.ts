@@ -8,7 +8,8 @@ describe("Close Code Propagation", () => {
 
       // Wait for the WebSocket to be fully open
       await new Promise<void>((resolve) => {
-        if (webSocket.readyState === WebSocket.OPEN) { // OPEN
+        if (webSocket.readyState === WebSocket.OPEN) {
+          // OPEN
           resolve();
         } else {
           webSocket.addEventListener("open", () => {
@@ -37,12 +38,9 @@ describe("Close Code Propagation", () => {
 
       // Close with custom code
       webSocket.close(4001, "Custom close reason");
-      
+
       // Wait for both close events
-      const [clientCloseEvent] = await Promise.all([
-        clientClosePromise,
-        backendClosePromise
-      ]);
+      const [clientCloseEvent] = await Promise.all([clientClosePromise, backendClosePromise]);
 
       // Verify client received the correct close code
       expect(clientCloseEvent.code).toBe(4001);
@@ -51,7 +49,7 @@ describe("Close Code Propagation", () => {
       // Verify backend received the same close code (propagated through proxy)
       expect(backendCloseCode).toBe(4001);
       expect(backendCloseReason).toBe("Custom close reason");
-      
+
       expect(testBackend.hasConnection()).toBe(false);
     });
   });
@@ -60,7 +58,7 @@ describe("Close Code Propagation", () => {
     const testCases = [
       { code: 1000, reason: "Normal closure" },
       { code: 3000, reason: "Custom application close" },
-      { code: 4999, reason: "Another custom close" }
+      { code: 4999, reason: "Another custom close" },
     ];
 
     for (const testCase of testCases) {
@@ -92,12 +90,9 @@ describe("Close Code Propagation", () => {
 
         // Close with test case code/reason
         webSocket.close(testCase.code, testCase.reason);
-        
+
         // Wait for both events
-        const [clientCloseEvent] = await Promise.all([
-          clientClosePromise,
-          backendClosePromise
-        ]);
+        const [clientCloseEvent] = await Promise.all([clientClosePromise, backendClosePromise]);
 
         // Verify propagation
         expect(clientCloseEvent.code).toBe(testCase.code);
@@ -114,7 +109,8 @@ describe("Close Code Propagation", () => {
 
       // Wait for the WebSocket to be fully open
       await new Promise<void>((resolve) => {
-        if (webSocket.readyState === WebSocket.OPEN) { // OPEN
+        if (webSocket.readyState === WebSocket.OPEN) {
+          // OPEN
           resolve();
         } else {
           webSocket.addEventListener("open", () => {
@@ -132,14 +128,14 @@ describe("Close Code Propagation", () => {
 
       // Backend/server closes the connection with specific code
       connection.close(4002, "Server-initiated close");
-      
+
       // Wait for client to receive close event
       const clientCloseEvent = await clientClosePromise;
 
       // Verify client received the backend's close code
       expect(clientCloseEvent.code).toBe(4002);
       expect(clientCloseEvent.reason).toBe("Server-initiated close");
-      
+
       expect(testBackend.hasConnection()).toBe(false);
     });
   });
@@ -148,7 +144,7 @@ describe("Close Code Propagation", () => {
     const testCases = [
       { code: 1000, reason: "Normal closure from server" },
       { code: 1002, reason: "Protocol error" },
-      { code: 4003, reason: "Custom server close" }
+      { code: 4003, reason: "Custom server close" },
     ];
 
     for (const testCase of testCases) {
@@ -171,7 +167,7 @@ describe("Close Code Propagation", () => {
 
         // Server closes with test case code/reason
         connection.close(testCase.code, testCase.reason);
-        
+
         // Wait for client close event
         const clientCloseEvent = await clientClosePromise;
 
@@ -189,7 +185,7 @@ describe("Close Code Propagation", () => {
       { code: 1002, reason: "Protocol error", expectedWasClean: true },
       { code: 1003, reason: "Unsupported data", expectedWasClean: true },
       { code: 4000, reason: "Custom close", expectedWasClean: false },
-      { code: 4999, reason: "Another custom close", expectedWasClean: false }
+      { code: 4999, reason: "Another custom close", expectedWasClean: false },
     ];
 
     for (const testCase of testCases) {
@@ -204,19 +200,21 @@ describe("Close Code Propagation", () => {
         });
 
         // Set up client close listener to check wasClean
-        const clientClosePromise = new Promise<{ code: number; reason: string; wasClean: boolean }>((resolve) => {
-          webSocket.addEventListener("close", (event: any) => {
-            resolve({ 
-              code: event.code, 
-              reason: event.reason, 
-              wasClean: event.wasClean 
+        const clientClosePromise = new Promise<{ code: number; reason: string; wasClean: boolean }>(
+          (resolve) => {
+            webSocket.addEventListener("close", (event: any) => {
+              resolve({
+                code: event.code,
+                reason: event.reason,
+                wasClean: event.wasClean,
+              });
             });
-          });
-        });
+          },
+        );
 
         // Server closes with test case code
         connection.close(testCase.code, testCase.reason);
-        
+
         // Wait for client close event
         const clientCloseEvent = await clientClosePromise;
 

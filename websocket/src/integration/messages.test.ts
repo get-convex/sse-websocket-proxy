@@ -350,17 +350,17 @@ describe("Messages Integration Test", () => {
 
           for (let i = 0; i < testDataSets.length; i++) {
             const testData = testDataSets[i];
-            
+
             // Set up message listener for this test data
             const messagePromise = new Promise<ArrayBuffer | Blob>((resolve, reject) => {
-              const timeout = setTimeout(() => reject(new Error('Message timeout')), 5000);
-              
+              const timeout = setTimeout(() => reject(new Error("Message timeout")), 5000);
+
               const handler = (event: MessageEvent) => {
                 clearTimeout(timeout);
                 ws.removeEventListener("message", handler);
                 resolve(event.data);
               };
-              
+
               ws.addEventListener("message", handler);
             });
 
@@ -375,7 +375,7 @@ describe("Messages Integration Test", () => {
               expect(receivedData).toBeInstanceOf(Blob);
               const blob = receivedData as Blob;
               expect(blob.size).toBe(testData.length);
-              
+
               // Convert blob to ArrayBuffer to verify content
               const arrayBuffer = await blob.arrayBuffer();
               const receivedArray = new Uint8Array(arrayBuffer);

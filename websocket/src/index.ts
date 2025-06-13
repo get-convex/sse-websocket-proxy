@@ -142,13 +142,13 @@ export class SimulatedWebsocket extends EventTarget {
         // Decode base64 data back to ArrayBuffer or Blob based on binaryType
         const arrayBuffer = this.decodeBinaryDataBrowser(message.data);
         let binaryData: ArrayBuffer | Blob;
-        
+
         if (this.binaryType === "blob") {
           binaryData = new Blob([arrayBuffer]);
         } else {
           binaryData = arrayBuffer;
         }
-        
+
         const binaryMessageEvent = new MessageEvent("message", {
           data: binaryData,
         });

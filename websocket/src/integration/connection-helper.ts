@@ -11,9 +11,8 @@ export interface WebSocketConnectionContext {
   testBackend: WSTestBackend;
 }
 
-
 export async function withWebsocketConnection<T>(
-  callback: (context: WebSocketConnectionContext) => Promise<T>
+  callback: (context: WebSocketConnectionContext) => Promise<T>,
 ): Promise<T> {
   // Get available ports dynamically
   const BACKEND_PORT = await getPort();
@@ -36,7 +35,7 @@ export async function withWebsocketConnection<T>(
   const webSocket = new SimulatedWebsocket(
     `ws://localhost:${BACKEND_PORT}`,
     undefined,
-    `http://localhost:${PROXY_PORT}`
+    `http://localhost:${PROXY_PORT}`,
   );
 
   try {
@@ -46,20 +45,21 @@ export async function withWebsocketConnection<T>(
       backendConnectionPromise,
       // Wait for WebSocket to be open
       new Promise<void>((resolve, reject) => {
-        if (webSocket.readyState === WebSocket.OPEN) { // OPEN
+        if (webSocket.readyState === WebSocket.OPEN) {
+          // OPEN
           resolve();
         } else {
-          const timeout = setTimeout(() => reject(new Error('WebSocket connection timeout')), 5000);
+          const timeout = setTimeout(() => reject(new Error("WebSocket connection timeout")), 5000);
           webSocket.addEventListener("open", () => {
             clearTimeout(timeout);
             resolve();
           });
           webSocket.addEventListener("error", (error: any) => {
             clearTimeout(timeout);
-            reject(new Error(`WebSocket connection error: ${error.message || 'Unknown error'}`));
+            reject(new Error(`WebSocket connection error: ${error.message || "Unknown error"}`));
           });
         }
-      })
+      }),
     ]);
 
     const connection = await backendConnectionPromise;
@@ -71,9 +71,9 @@ export async function withWebsocketConnection<T>(
   } finally {
     // Clean up all resources
     webSocket.close();
-    
+
     await proxy.stop();
-    
+
     await testBackend.stop();
   }
 }

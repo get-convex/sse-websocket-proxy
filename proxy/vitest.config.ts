@@ -1,12 +1,12 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    environment: "node",
+    environment: 'node',
     testTimeout: 30000,
     hookTimeout: 30000,
   },
   resolve: {
-    conditions: ["sse-ws-proxy-development"],
+    conditions: ['sse-ws-proxy-development'],
   },
-});
+})

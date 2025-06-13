@@ -7,31 +7,31 @@ describe("WebSocket Behavior Comparison", () => {
       "connect → send → close(1001) validation",
       async (WebSocketClass, backendUrl, isSimulated, clientConnection) => {
         const ws = new WebSocketClass(backendUrl);
-        
+
         // Wait for connection to open
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
-          
+          const timeout = setTimeout(() => reject(new Error("Connection timeout")), 5000);
+
           ws.onopen = () => {
             clearTimeout(timeout);
             resolve();
           };
-          
+
           ws.onerror = (error: any) => {
             clearTimeout(timeout);
-            reject(new Error(`WebSocket error: ${error.message || 'Unknown error'}`));
+            reject(new Error(`WebSocket error: ${error.message || "Unknown error"}`));
           };
         });
 
         // Get the backend connection and send a test message
         const backendConn = await clientConnection;
-        const testMessage = `Hello from ${isSimulated ? 'simulated' : 'native'} WebSocket!`;
+        const testMessage = `Hello from ${isSimulated ? "simulated" : "native"} WebSocket!`;
         ws.send(testMessage);
 
         // Verify the message is received on the backend
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('Message receive timeout')), 5000);
-          
+          const timeout = setTimeout(() => reject(new Error("Message receive timeout")), 5000);
+
           backendConn.onMessage((receivedData: string) => {
             clearTimeout(timeout);
             expect(receivedData).toBe(testMessage);
@@ -49,7 +49,7 @@ describe("WebSocket Behavior Comparison", () => {
 
         // Verify that an error was thrown
         expect(thrownError).not.toBeNull();
-        expect(thrownError.constructor.name).toBe('DOMException');
+        expect(thrownError.constructor.name).toBe("DOMException");
         expect(thrownError.message.toLowerCase()).toMatch(/(invalid|code)/);
       },
     );
@@ -81,7 +81,7 @@ describe("WebSocket Behavior Comparison", () => {
 
           // Both implementations should throw the same type of error for invalid codes
           expect(thrownError).not.toBeNull();
-          expect(thrownError.constructor.name).toBe('DOMException');
+          expect(thrownError.constructor.name).toBe("DOMException");
           expect(thrownError.message.toLowerCase()).toMatch(/(invalid|code)/);
         },
       );
@@ -121,15 +121,15 @@ describe("WebSocket Behavior Comparison", () => {
       // Simple strings
       "Hello World",
       "Simple text message",
-      
+
       // JSON strings
       JSON.stringify({ type: "test", message: "Hello from client" }),
       JSON.stringify({ id: 42, data: [1, 2, 3], nested: { key: "value" } }),
-      
+
       // Special characters and unicode
       "Message with émojis 🎉 and spëcial chars: áéíóú",
       "Line breaks\nand\ttabs\rwork",
-      
+
       // Edge cases
       "",
       " ",
@@ -138,56 +138,56 @@ describe("WebSocket Behavior Comparison", () => {
       JSON.stringify("just a string in JSON"),
       JSON.stringify(null),
       JSON.stringify(true),
-      
+
       // Long message
-      "This is a longer message that contains multiple words and should be transmitted correctly through the WebSocket proxy without any data corruption or truncation issues."
+      "This is a longer message that contains multiple words and should be transmitted correctly through the WebSocket proxy without any data corruption or truncation issues.",
     ];
 
     await withWsAndReference(
       "message transmission for various data types",
       async (WebSocketClass, backendUrl, isSimulated, clientConnection) => {
         const ws = new WebSocketClass(backendUrl);
-        
+
         // Wait for connection to open
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
-          
+          const timeout = setTimeout(() => reject(new Error("Connection timeout")), 5000);
+
           ws.onopen = () => {
             clearTimeout(timeout);
             resolve();
           };
-          
+
           ws.onerror = (error: any) => {
             clearTimeout(timeout);
-            reject(new Error(`WebSocket error: ${error.message || 'Unknown error'}`));
+            reject(new Error(`WebSocket error: ${error.message || "Unknown error"}`));
           };
         });
 
         // Get the backend connection
         const backendConn = await clientConnection;
-        
+
         // Set up a message queue to handle sequential message verification
         const receivedMessages: string[] = [];
         let messageIndex = 0;
         let currentResolve: (() => void) | null = null;
         let currentReject: ((error: Error) => void) | null = null;
         let currentTimeout: NodeJS.Timeout | null = null;
-        
+
         // Single message handler that processes messages in order
         backendConn.onMessage((receivedData: string) => {
           receivedMessages.push(receivedData);
-          
+
           // If we're waiting for a message, check if this is the expected one
           if (currentResolve && messageIndex < messagesToTest.length) {
             const expectedMessage = messagesToTest[messageIndex];
             const actualMessage = receivedMessages[messageIndex];
-            
+
             if (actualMessage !== undefined) {
               if (currentTimeout) {
                 clearTimeout(currentTimeout);
                 currentTimeout = null;
               }
-              
+
               try {
                 expect(actualMessage).toBe(expectedMessage);
                 messageIndex++;
@@ -204,11 +204,11 @@ describe("WebSocket Behavior Comparison", () => {
             }
           }
         });
-        
+
         // Send all messages and verify them sequentially
         for (let i = 0; i < messagesToTest.length; i++) {
           const testMessage = messagesToTest[i];
-          
+
           // Send the test message
           ws.send(testMessage);
 
@@ -225,7 +225,7 @@ describe("WebSocket Behavior Comparison", () => {
               }
               return;
             }
-            
+
             // Otherwise, wait for the message handler to process it
             currentResolve = resolve;
             currentReject = reject;
@@ -233,7 +233,11 @@ describe("WebSocket Behavior Comparison", () => {
               currentResolve = null;
               currentReject = null;
               currentTimeout = null;
-              reject(new Error(`Message receive timeout for: "${testMessage.slice(0, 30)}${testMessage.length > 30 ? '...' : ''}"`));
+              reject(
+                new Error(
+                  `Message receive timeout for: "${testMessage.slice(0, 30)}${testMessage.length > 30 ? "..." : ""}"`,
+                ),
+              );
             }, 5000);
           });
         }

@@ -1,9 +1,6 @@
 // Node.js-specific version that injects dependencies
 import { EventSource } from "eventsource";
-import {
-  setEventSource,
-  SimulatedWebsocket as BaseSimulatedWebsocket,
-} from "./index.js";
+import { setEventSource, SimulatedWebsocket as BaseSimulatedWebsocket } from "./index.js";
 
 setEventSource(EventSource);
 
