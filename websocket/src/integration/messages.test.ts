@@ -395,5 +395,50 @@ describe("Messages Integration Test", () => {
         },
       );
     });
+
+    it("should send Blob and ArrayBuffer data identically to native WebSocket", async () => {
+      await withConnectedWsAndReference(
+        "sending Blob and ArrayBuffer data",
+        async (ws, connection, isSimulated) => {
+          // Test data - use different content for different types to ensure no mix-ups
+          const arrayBufferData = new Uint8Array([1, 2, 3, 4, 5, 255, 128]);
+          const blobData = new Uint8Array([10, 20, 30, 40, 50, 200, 100]);
+          
+          // Test ArrayBuffer sending
+          const arrayBufferPromise = new Promise<Buffer>((resolve) => {
+            connection.onBinaryMessage((data: Buffer) => {
+              resolve(data);
+            });
+          });
+          
+          ws.send(arrayBufferData.buffer);
+          const receivedArrayBuffer = await arrayBufferPromise;
+          
+          // Verify ArrayBuffer was transmitted correctly
+          expect(receivedArrayBuffer).toBeInstanceOf(Buffer);
+          expect(receivedArrayBuffer.length).toBe(arrayBufferData.length);
+          expect(Array.from(new Uint8Array(receivedArrayBuffer))).toEqual(Array.from(arrayBufferData));
+          
+          // Test Blob sending - should work identically for both native and simulated
+          const blobPromise = new Promise<Buffer>((resolve) => {
+            connection.onBinaryMessage((data: Buffer) => {
+              resolve(data);
+            });
+          });
+          
+          const blob = new Blob([blobData]);
+          ws.send(blob);
+          
+          const receivedBlob = await blobPromise;
+          
+          // Verify Blob was transmitted correctly
+          expect(receivedBlob).toBeInstanceOf(Buffer);
+          expect(receivedBlob.length).toBe(blobData.length);
+          expect(Array.from(new Uint8Array(receivedBlob))).toEqual(Array.from(blobData));
+          
+          ws.close();
+        },
+      );
+    });
   });
 });

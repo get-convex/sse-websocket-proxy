@@ -96,10 +96,6 @@ export class SSEWebSocketProxy {
     const url = new URL(req.url!, `http://localhost:${this.config.port}`)
     const sessionId = url.searchParams.get('sessionId') || this.generateSessionId()
 
-    console.log(`SSE connection request for session: ${sessionId}`)
-    console.log(`Original request URL: ${req.url}`)
-    console.log(`Parsed URL path: ${url.pathname}`)
-
     // Set up SSE headers
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -218,18 +214,13 @@ export class SSEWebSocketProxy {
       try {
         // Parse and validate the message request
         const messageRequest = decodeMessageRequest(body)
-        console.log('proxy received', messageRequest, 'from client')
-
-        console.log('sending', messageRequest.data)
         if (isTextMessageRequest(messageRequest)) {
           // Send text message directly to WebSocket backend
           client.websocket.send(messageRequest.data)
-          console.log(`Sent text message for session ${client.sessionId}`)
         } else if (isBinaryMessageRequest(messageRequest)) {
           // Decode base64 data and send as binary to WebSocket backend
           const binaryData = decodeBinaryData(messageRequest.data)
           client.websocket.send(binaryData)
-          console.log(`Sent binary message for session ${client.sessionId}`)
         }
 
         client.lastActivity = Date.now()
@@ -334,20 +325,11 @@ export class SSEWebSocketProxy {
     const { websocket, sseResponse, sessionId } = client
 
     websocket.on('open', () => {
-      console.log(`WebSocket connected for session: ${sessionId}`)
       this.sendSSEMessage(sseResponse, encodeWebSocketConnectedMessage(sessionId, Date.now()))
     })
 
     websocket.on('message', (data, isBinary) => {
       client.lastActivity = Date.now()
-      console.log(
-        `proxy received`,
-        typeof data,
-        data instanceof ArrayBuffer ? 'ArrayBuffer' : data instanceof Blob ? 'Blob' : '?',
-        data,
-        { isBinary },
-        'from server',
-      )
 
       if (isBinary) {
         // Binary message - encode as base64 and send as binary SSE message
@@ -361,11 +343,9 @@ export class SSEWebSocketProxy {
           base64Data = Buffer.from(data as any).toString('base64')
         }
         this.sendSSEMessage(sseResponse, encodeBinaryDataMessage(base64Data, Date.now()))
-        console.log(`Forwarded binary message to SSE client ${sessionId}`)
       } else {
-        // Text message - send as regular text SSE message
+        // Text message
         this.sendSSEMessage(sseResponse, encodeDataMessage(data.toString(), Date.now()))
-        console.log(`Forwarded text message to SSE client ${sessionId}`)
       }
     })
 
@@ -375,8 +355,6 @@ export class SSEWebSocketProxy {
     })
 
     websocket.on('close', (code, reason) => {
-      console.log(`WebSocket closed for session ${sessionId}:`, code, reason.toString())
-
       // Determine if close was clean (normal closure codes)
       const wasClean = code >= 1000 && code <= 1003
 
@@ -389,12 +367,10 @@ export class SSEWebSocketProxy {
 
   private setupSSECleanup(req: IncomingMessage, res: ServerResponse, sessionId: string): void {
     res.on('close', () => {
-      console.log(`SSE connection closed for session: ${sessionId}`)
       this.cleanupClient(sessionId, 'sse-closed')
     })
 
     req.on('aborted', () => {
-      console.log(`SSE connection aborted for session: ${sessionId}`)
       this.cleanupClient(sessionId, 'sse-aborted')
     })
   }
@@ -403,7 +379,6 @@ export class SSEWebSocketProxy {
     if (res.destroyed) return
 
     const message = `data: ${encodedData}\n\n`
-    console.log('proxy writing', message, 'to client')
     res.write(message)
   }
 
@@ -416,7 +391,6 @@ export class SSEWebSocketProxy {
       if (client.websocket && client.websocket.readyState === WebSocket.OPEN) {
         // If SSE connection was terminated (tab close, network issue), send 1001 "going away"
         if (reason === 'sse-closed' || reason === 'sse-aborted') {
-          console.log(`SSE connection ${reason} for session ${sessionId}, closing backend with 1001`)
           client.websocket.close(1001, 'Client going away')
         } else {
           // Normal cleanup - let WebSocket close naturally
@@ -427,7 +401,6 @@ export class SSEWebSocketProxy {
         client.sseResponse.end()
       }
       this.clients.delete(sessionId)
-      console.log(`Cleaned up session: ${sessionId} (reason: ${reason})`)
     }
   }
 
@@ -466,7 +439,6 @@ export class SSEWebSocketProxy {
 
       const fullPath = targetPath + originalUrl.search
 
-      console.log(`Mapping SSE request '${originalUrl.pathname}' to WebSocket path '${fullPath}'`)
       return `${protocol}//${host}${fullPath}`
     }
 

@@ -6,6 +6,26 @@ export function setEventSource(es: typeof EventSource) {
   EventSource = es;
 }
 
+function isVerboseMode(): boolean {
+  // Check for verbose mode in browser environment
+  if (typeof window !== "undefined" && !!(window as any).SSE_WS_VERBOSE) {
+    return true;
+  }
+
+  // Check for verbose mode in Node.js environment
+  if (typeof process !== "undefined" && process.env && !!process.env.SSE_WS_VERBOSE) {
+    return true;
+  }
+
+  return false;
+}
+
+function verboseLog(...args: any[]): void {
+  if (isVerboseMode()) {
+    console.log("[SSE-WS-VERBOSE]", ...args);
+  }
+}
+
 /**
  * Behaves like a WebSocket but is powered by a proxy
  */
@@ -88,9 +108,9 @@ export class SimulatedWebsocket extends EventTarget {
     };
 
     this.eventSource.onmessage = (event) => {
+      let message: SSEMessage;
       try {
-        const message = decodeSSEMessage(event.data);
-        this.handleProxyMessage(message);
+        message = decodeSSEMessage(event.data);
       } catch (error) {
         console.error("SimulatedWebsocket: Failed to decode SSE message:", error);
         // Malformed data from proxy should trigger an error event
@@ -99,7 +119,9 @@ export class SimulatedWebsocket extends EventTarget {
             `Malformed data from proxy: ${error instanceof Error ? error.message : "Unknown decoding error"}`,
           ),
         );
+        return;
       }
+      this.handleProxyMessage(message);
     };
 
     this.eventSource.onerror = (error) => {
@@ -126,6 +148,7 @@ export class SimulatedWebsocket extends EventTarget {
         this.isWebSocketConnected = true;
         this.readyState = WebSocket.OPEN;
         const openEvent = new Event("open");
+        verboseLog(`Firing 'open' event - WebSocket connection established`);
         this.dispatchEvent(openEvent);
         if (this.onopen) this.onopen(openEvent);
         break;
@@ -134,6 +157,11 @@ export class SimulatedWebsocket extends EventTarget {
         const messageEvent = new MessageEvent("message", {
           data: message.data,
         });
+        verboseLog(
+          `Firing 'message' event - received text data:`,
+          typeof message.data,
+          message.data.length > 100 ? `${message.data.slice(0, 100)}...` : message.data,
+        );
         this.dispatchEvent(messageEvent);
         if (this.onmessage) this.onmessage(messageEvent);
         break;
@@ -152,6 +180,12 @@ export class SimulatedWebsocket extends EventTarget {
         const binaryMessageEvent = new MessageEvent("message", {
           data: binaryData,
         });
+        verboseLog(
+          `Firing 'message' event - received binary data (${this.binaryType}):`,
+          binaryData instanceof Blob
+            ? `Blob(${binaryData.size} bytes)`
+            : `ArrayBuffer(${arrayBuffer.byteLength} bytes)`,
+        );
         this.dispatchEvent(binaryMessageEvent);
         if (this.onmessage) this.onmessage(binaryMessageEvent);
         break;
@@ -187,6 +221,7 @@ export class SimulatedWebsocket extends EventTarget {
     const errorEvent = Object.assign(new Event("error"), {
       error: error,
     });
+    verboseLog(`Firing 'error' event - error:`, error.message);
     this.dispatchEvent(errorEvent);
     if (this.onerror) this.onerror(errorEvent);
 
@@ -212,6 +247,7 @@ export class SimulatedWebsocket extends EventTarget {
       reason: reason,
       wasClean: wasClean,
     });
+    verboseLog(`Firing 'close' event - code: ${code}, reason: "${reason}", wasClean: ${wasClean}`);
     this.dispatchEvent(closeEvent);
     if (this.onclose) this.onclose(closeEvent);
   }
@@ -225,6 +261,12 @@ export class SimulatedWebsocket extends EventTarget {
       throw new Error("No session ID available");
     }
 
+    // Handle Blob data asynchronously
+    if (data instanceof Blob) {
+      this.sendBlob(data);
+      return;
+    }
+
     // Prepare message based on data type
     let messageToSend: string;
     if (typeof data === "string") {
@@ -236,11 +278,21 @@ export class SimulatedWebsocket extends EventTarget {
     }
 
     // Send via HTTP POST to the proxy using the new protocol
+    this.sendMessage(messageToSend);
+  }
+
+  private async sendBlob(blob: Blob): Promise<void> {
+    const arrayBuffer = await blob.arrayBuffer();
+    const messageToSend = this.handleBinaryData(arrayBuffer);
+    this.sendMessage(messageToSend);
+  }
+
+  private sendMessage(messageToSend: string): void {
     fetch(`${this.proxyUrl}/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Session-Id": this.sessionId,
+        "X-Session-Id": this.sessionId!,
       },
       body: messageToSend,
     }).catch((error) => {
@@ -249,16 +301,7 @@ export class SimulatedWebsocket extends EventTarget {
     });
   }
 
-  private handleBinaryData(data: ArrayBufferLike | Blob | ArrayBufferView): string {
-    if (data instanceof Blob) {
-      // For Blob, we need to handle this asynchronously, but WebSocket.send is synchronous
-      // We'll convert to ArrayBuffer synchronously using FileReaderSync if available,
-      // otherwise throw an error suggesting to convert Blob to ArrayBuffer first
-      throw new Error(
-        "Blob support requires conversion to ArrayBuffer first. Use blob.arrayBuffer() and await the result before calling send().",
-      );
-    }
-
+  private handleBinaryData(data: ArrayBufferLike | ArrayBufferView): string {
     // Convert to Uint8Array for consistent handling
     let uint8Array: Uint8Array;
     if (data instanceof ArrayBuffer) {

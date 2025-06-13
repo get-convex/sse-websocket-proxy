@@ -2,8 +2,6 @@ import getPort from "get-port";
 import { SimulatedWebsocket } from "sse-proxied-websocket/node";
 import { SSEWebSocketProxy } from "sse-websocket-proxy";
 
-console.log(SimulatedWebsocket, SSEWebSocketProxy);
-
 async function runTests() {
   const agent = "Proxied SSE WebSocket";
 
@@ -57,17 +55,18 @@ async function runCase(caseNum, agent) {
       undefined,
       `http://localhost:${PROXY_PORT}`,
     );
+    /*
+    const ws = new WebSocket(`ws://localhost:9001/runCase?case=${caseNum}&agent=${agent}`);
+    */
 
     ws.onopen = () => {
       // Case is ready to start
     };
 
-    ws.onmessage = (data) => {
-      console.log("got:", data);
+    ws.onmessage = (event) => {
       // Echo back exactly what we received
       try {
-        console.log("sending:", data);
-        ws.send(data);
+        ws.send(event.data);
       } catch (error) {
         // Connection might be closing
         console.log(`Case ${caseNum}: Send failed, connection likely closing`);
@@ -75,6 +74,7 @@ async function runCase(caseNum, agent) {
     };
 
     ws.onclose = (code, reason) => {
+      console.log("close:", code, reason);
       resolve();
     };
 
