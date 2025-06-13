@@ -148,10 +148,9 @@ export class SimulatedWebsocket extends EventTarget {
         break;
 
       case "message":
-        const messageEvent = new CustomEvent("message", {
-          detail: { data: message.data },
+        const messageEvent = Object.assign(new Event("message"), {
+          data: message.data
         }) as WebSocketMessageEvent;
-        messageEvent.data = message.data;
         this.dispatchEvent(messageEvent);
         if (this.onmessage) this.onmessage(messageEvent);
         break;
@@ -184,10 +183,9 @@ export class SimulatedWebsocket extends EventTarget {
     }
 
     // Fire error event
-    const errorEvent = new CustomEvent("error", {
-      detail: { error },
+    const errorEvent = Object.assign(new Event("error"), {
+      error: error
     }) as WebSocketErrorEvent;
-    errorEvent.error = error;
     this.dispatchEvent(errorEvent);
     if (this.onerror) this.onerror(errorEvent);
 
@@ -208,12 +206,11 @@ export class SimulatedWebsocket extends EventTarget {
       this.eventSource = null;
     }
 
-    const closeEvent = new CustomEvent("close", {
-      detail: { code, reason, wasClean },
+    const closeEvent = Object.assign(new Event("close"), {
+      code: code,
+      reason: reason,
+      wasClean: wasClean
     }) as WebSocketCloseEvent;
-    closeEvent.code = code;
-    closeEvent.reason = reason;
-    closeEvent.wasClean = wasClean;
     this.dispatchEvent(closeEvent);
     if (this.onclose) this.onclose(closeEvent);
   }
