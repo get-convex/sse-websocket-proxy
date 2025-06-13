@@ -7,7 +7,6 @@ const packageVersion =
 export default [
   defineConfig({
     entry: ["src/index.ts"],
-    exports: true, // update package.json
     format: ["cjs", "esm"],
     dts: {
       tsconfig: "./tsconfig.json",
@@ -22,7 +21,7 @@ export default [
   }),
   defineConfig({
     entry: ["src/node.ts"],
-    format: ["esm"], // this is a CLI tool
+    format: ["cjs", "esm"], // this is a CLI tool
     dts: {
       tsconfig: "./tsconfig.json",
       sourcemap: true,

@@ -1,0 +1,46 @@
+{
+  "name": "sse-proxied-websocket",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.8.1",
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/ws": "^8.18.1",
+    "get-port": "^7.1.0",
+    "sse-websocket-proxy": "link:../proxy",
+    "tsdown": "^0.12.7",
+    "tsx": "^4.7.1",
+    "typescript": "5.8.2",
+    "vitest": "^2.0.0",
+    "ws": "^8.18.2"
+  },
+  "main": "./dist/node.cjs",
+  "module": "./dist/node.js",
+  "types": "./dist/node.d.cts",
+  "exports": {
+    ".": {
+      "sse-ws-proxy-development": "./src/index.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./node": {
+      "sse-ws-proxy-development": "./src/node.ts",
+      "import": "./dist/node.js",
+      "require": "./dist/node.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@types/eventsource": "^3.0.0",
+    "eventsource": "^4.0.0"
+  }
+}

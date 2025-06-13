@@ -1,0 +1,25 @@
+{
+  "name": "autobahn-tests",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@types/node": "^22.15.30",
+    "@types/ws": "^8.18.1",
+    "get-port": "^7.1.0",
+    "sse-proxied-websocket": "link:../websocket",
+    "sse-websocket-proxy": "link:../proxy",
+    "tsdown": "^0.12.7",
+    "ws": "^8.18.2"
+  },
+  "devDependencies": {
+    "tsdown": "^0.1.0",
+    "tsx": "^4.7.1",
+    "typescript": "5.8.2",
+    "vitest": "^2.0.0"
+  }
+}

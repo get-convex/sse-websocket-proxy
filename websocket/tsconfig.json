@@ -34,6 +34,9 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
-    "skipLibCheck": true
-  }
+    "skipLibCheck": true,
+
+    "customConditions": ["sse-ws-proxy-development"]
+  },
+  "exclude": ["vitest.config.ts"]
 }

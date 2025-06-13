@@ -1,6 +1,7 @@
 packages:
-  - sse-proxied-websocket
-  - sse-ws-proxy
+  - websocket
+  - proxy
+  - autobahn-tests
 
 onlyBuiltDependencies:
   - esbuild
