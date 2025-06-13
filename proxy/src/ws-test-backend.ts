@@ -6,6 +6,7 @@ export interface TestBackendConfig {
 
 export interface WSConnection {
   send(data: string): void;
+  sendBinary(data: Buffer | ArrayBuffer | Uint8Array): void;
   close(code?: number, reason?: string): void;
   onMessage(callback: (data: string) => void): void;
   onBinaryMessage(callback: (data: Buffer) => void): void;
@@ -113,6 +114,12 @@ export class WSTestBackend {
   private createConnectionWrapper(ws: WebSocket): WSConnection {
     return {
       send: (data: string) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(data);
+        }
+      },
+      
+      sendBinary: (data: Buffer | ArrayBuffer | Uint8Array) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(data);
         }

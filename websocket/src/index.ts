@@ -1,7 +1,5 @@
-import { decodeSSEMessage, type SSEMessage } from 'sse-websocket-proxy/sse-protocol';
-import { encodeTextMessageRequest } from 'sse-websocket-proxy/messages-protocol';
-
-
+import { decodeSSEMessage, type SSEMessage } from "sse-websocket-proxy/sse-protocol";
+import { encodeTextMessageRequest } from "sse-websocket-proxy/messages-protocol";
 
 let EventSource = globalThis.EventSource;
 export function setEventSource(es: typeof EventSource) {
@@ -23,6 +21,8 @@ export class SimulatedWebsocket extends EventTarget {
   private userInitiatedClose: boolean = false;
   private isWebSocketConnected: boolean = false;
 
+  public binaryType: "blob" | "arraybuffer";
+
   // Event handlers (WebSocket-style)
   public onopen: ((event: Event) => void) | null = null;
   public onmessage: ((event: MessageEvent) => void) | null = null;
@@ -31,6 +31,7 @@ export class SimulatedWebsocket extends EventTarget {
 
   constructor(url: string | URL, protocols: undefined | string | string[], proxyUrl: string) {
     super();
+    this.binaryType = "blob";
 
     if (protocols && (!Array.isArray(protocols) || protocols.length !== 0)) {
       throw new Error(
@@ -93,7 +94,11 @@ export class SimulatedWebsocket extends EventTarget {
       } catch (error) {
         console.error("SimulatedWebsocket: Failed to decode SSE message:", error);
         // Malformed data from proxy should trigger an error event
-        this.handleError(new Error(`Malformed data from proxy: ${error instanceof Error ? error.message : 'Unknown decoding error'}`));
+        this.handleError(
+          new Error(
+            `Malformed data from proxy: ${error instanceof Error ? error.message : "Unknown decoding error"}`,
+          ),
+        );
       }
     };
 
@@ -117,10 +122,6 @@ export class SimulatedWebsocket extends EventTarget {
 
   private handleProxyMessage(message: SSEMessage): void {
     switch (message.type) {
-      case "connected":
-        this.sessionId = message.sessionId;
-        break;
-
       case "websocket-connected":
         this.isWebSocketConnected = true;
         this.readyState = WebSocket.OPEN;
@@ -131,17 +132,25 @@ export class SimulatedWebsocket extends EventTarget {
 
       case "message":
         const messageEvent = new MessageEvent("message", {
-          data: message.data
+          data: message.data,
         });
         this.dispatchEvent(messageEvent);
         if (this.onmessage) this.onmessage(messageEvent);
         break;
 
       case "binary-message":
-        // Decode base64 data back to ArrayBuffer
-        const binaryData = this.decodeBinaryDataBrowser(message.data);
+        // Decode base64 data back to ArrayBuffer or Blob based on binaryType
+        const arrayBuffer = this.decodeBinaryDataBrowser(message.data);
+        let binaryData: ArrayBuffer | Blob;
+        
+        if (this.binaryType === "blob") {
+          binaryData = new Blob([arrayBuffer]);
+        } else {
+          binaryData = arrayBuffer;
+        }
+        
         const binaryMessageEvent = new MessageEvent("message", {
-          data: binaryData
+          data: binaryData,
         });
         this.dispatchEvent(binaryMessageEvent);
         if (this.onmessage) this.onmessage(binaryMessageEvent);
@@ -176,7 +185,7 @@ export class SimulatedWebsocket extends EventTarget {
 
     // Fire error event
     const errorEvent = Object.assign(new Event("error"), {
-      error: error
+      error: error,
     });
     this.dispatchEvent(errorEvent);
     if (this.onerror) this.onerror(errorEvent);
@@ -201,7 +210,7 @@ export class SimulatedWebsocket extends EventTarget {
     const closeEvent = Object.assign(new Event("close"), {
       code: code,
       reason: reason,
-      wasClean: wasClean
+      wasClean: wasClean,
     });
     this.dispatchEvent(closeEvent);
     if (this.onclose) this.onclose(closeEvent);
@@ -245,7 +254,9 @@ export class SimulatedWebsocket extends EventTarget {
       // For Blob, we need to handle this asynchronously, but WebSocket.send is synchronous
       // We'll convert to ArrayBuffer synchronously using FileReaderSync if available,
       // otherwise throw an error suggesting to convert Blob to ArrayBuffer first
-      throw new Error("Blob support requires conversion to ArrayBuffer first. Use blob.arrayBuffer() and await the result before calling send().");
+      throw new Error(
+        "Blob support requires conversion to ArrayBuffer first. Use blob.arrayBuffer() and await the result before calling send().",
+      );
     }
 
     // Convert to Uint8Array for consistent handling
@@ -256,7 +267,7 @@ export class SimulatedWebsocket extends EventTarget {
       uint8Array = data;
     } else {
       // ArrayBufferView (like DataView, typed arrays) or SharedArrayBuffer
-      if ('buffer' in data && 'byteOffset' in data && 'byteLength' in data) {
+      if ("buffer" in data && "byteOffset" in data && "byteLength" in data) {
         // ArrayBufferView
         uint8Array = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
       } else {
@@ -271,15 +282,15 @@ export class SimulatedWebsocket extends EventTarget {
 
   private encodeBinaryMessageRequestBrowser(uint8Array: Uint8Array): string {
     // Convert Uint8Array to base64 using browser-compatible method
-    let binaryString = '';
+    let binaryString = "";
     for (let i = 0; i < uint8Array.length; i++) {
       binaryString += String.fromCharCode(uint8Array[i]);
     }
     const base64Data = btoa(binaryString);
-    
+
     const message = {
-      type: 'binary',
-      data: base64Data
+      type: "binary",
+      data: base64Data,
     };
     return JSON.stringify(message);
   }
@@ -287,13 +298,13 @@ export class SimulatedWebsocket extends EventTarget {
   private decodeBinaryDataBrowser(base64Data: string): ArrayBuffer {
     // Decode base64 to binary string using browser-compatible method
     const binaryString = atob(base64Data);
-    
+
     // Convert binary string to Uint8Array
     const uint8Array = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       uint8Array[i] = binaryString.charCodeAt(i);
     }
-    
+
     // Return ArrayBuffer
     return uint8Array.buffer;
   }
@@ -392,7 +403,7 @@ export class SimulatedWebsocket extends EventTarget {
  * Factory function that creates WebSocket classes with consistent interfaces.
  * This is useful for testing or situations where you want to switch between
  * native WebSocket and proxied WebSocket implementations.
- * 
+ *
  * @param useProxy - Whether to return a proxied WebSocket class or native WebSocket
  * @param proxyUrl - The proxy URL (required if useProxy is true)
  * @returns A WebSocket class constructor
@@ -403,17 +414,17 @@ export function createProxiedWebSocketClass(useProxy: boolean, proxyUrl?: string
       throw new Error("proxyUrl is required when useProxy is true");
     }
     // Return a constructor function that creates SimulatedWebSocket instances
-    const ProxiedConstructor = function(this: any, url: string, protocols?: string | string[]) {
+    const ProxiedConstructor = function (this: any, url: string, protocols?: string | string[]) {
       if (!(this instanceof ProxiedConstructor)) {
         return new (ProxiedConstructor as any)(url, protocols);
       }
       return new SimulatedWebsocket(url, protocols, proxyUrl);
     };
-    
+
     // Copy static properties from SimulatedWebsocket if any
     Object.setPrototypeOf(ProxiedConstructor.prototype, SimulatedWebsocket.prototype);
     Object.setPrototypeOf(ProxiedConstructor, SimulatedWebsocket);
-    
+
     return ProxiedConstructor;
   } else {
     // Return the native browser WebSocket class (global)

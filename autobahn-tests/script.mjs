@@ -63,8 +63,10 @@ async function runCase(caseNum, agent) {
     };
 
     ws.onmessage = (data) => {
+      console.log("got:", data);
       // Echo back exactly what we received
       try {
+        console.log("sending:", data);
         ws.send(data);
       } catch (error) {
         // Connection might be closing

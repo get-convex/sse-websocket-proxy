@@ -216,93 +216,110 @@ describe("Messages Integration Test", () => {
 
     it("should handle binary messages from server to client", async () => {
       await withWebsocketConnection(async ({ webSocket, connection, proxy }) => {
-        const testData = new Uint8Array([10, 20, 30, 40, 255, 0, 128]);
+        const testDataSets = [
+          // Regular binary data
+          new Uint8Array([10, 20, 30, 40, 255, 0, 128]),
+          // Empty binary data
+          new Uint8Array([]),
+        ];
 
         // Get the session ID
         const sessionId = webSocket.getSessionId();
         expect(sessionId).toBeTruthy();
 
-        // Set up message listener on client to receive binary data
-        const clientMessagePromise = new Promise<ArrayBuffer>((resolve) => {
-          const handler = (event: any) => {
-            webSocket.removeEventListener("message", handler);
-            // Should receive ArrayBuffer from binary message
-            if (event.data instanceof ArrayBuffer) {
-              resolve(event.data);
-            } else {
-              // If we get a string, this means text message - fail the test
-              throw new Error(`Expected ArrayBuffer but got ${typeof event.data}`);
-            }
-          };
-          webSocket.addEventListener("message", handler);
-        });
+        // Set binaryType to arraybuffer to match test expectations
+        webSocket.binaryType = "arraybuffer";
 
-        // Simulate binary message from server using the SSE protocol directly
-        const base64Data = Buffer.from(testData).toString("base64");
-        const binaryMessage = JSON.stringify({
-          type: "binary-message",
-          data: base64Data,
-          timestamp: Date.now(),
-        });
+        for (const testData of testDataSets) {
+          // Set up message listener on client to receive binary data
+          const clientMessagePromise = new Promise<ArrayBuffer>((resolve) => {
+            const handler = (event: any) => {
+              webSocket.removeEventListener("message", handler);
+              // Should receive ArrayBuffer from binary message
+              if (event.data instanceof ArrayBuffer) {
+                resolve(event.data);
+              } else {
+                // If we get a string, this means text message - fail the test
+                throw new Error(`Expected ArrayBuffer but got ${typeof event.data}`);
+              }
+            };
+            webSocket.addEventListener("message", handler);
+          });
 
-        // Send the raw SSE message to simulate server-to-client binary
-        const sent = proxy.sendRawMessageToSession(sessionId!, binaryMessage);
-        expect(sent).toBe(true);
+          // Simulate binary message from server using the SSE protocol directly
+          const base64Data = Buffer.from(testData).toString("base64");
+          const binaryMessage = JSON.stringify({
+            type: "binary-message",
+            data: base64Data,
+            timestamp: Date.now(),
+          });
 
-        // Verify client receives the exact binary data
-        const receivedByClient = await clientMessagePromise;
-        const receivedArray = new Uint8Array(receivedByClient);
+          // Send the raw SSE message to simulate server-to-client binary
+          const sent = proxy.sendRawMessageToSession(sessionId!, binaryMessage);
+          expect(sent).toBe(true);
 
-        expect(receivedArray).toEqual(testData);
+          // Verify client receives the exact binary data
+          const receivedByClient = await clientMessagePromise;
+          const receivedArray = new Uint8Array(receivedByClient);
+
+          expect(receivedArray).toEqual(testData);
+        }
       });
     });
 
-    it("should handle typed arrays (Int16Array, Float32Array, etc.) the same as native WebSocket", async () => {
+    it("should send typed arrays (Int16Array, Float32Array, etc.) the same as native WebSocket", async () => {
       await withConnectedWsAndReference(
         "typed array binary message handling",
-        async (ws, connection, isSimulated) => {
+        async (ws, connection) => {
           // Test different typed array types
           const int16Data = new Int16Array([1000, -1000, 32767, -32768]);
           const float32Data = new Float32Array([3.14159, -2.71828, 0.0]);
-          
+
           // Test Int16Array
           const backendPromise1 = new Promise<Buffer>((resolve) => {
             connection.onBinaryMessage((data: Buffer) => {
               resolve(data);
             });
           });
-          
+
           ws.send(int16Data);
           const received1 = await backendPromise1;
-          
+
           // Verify the data was transmitted correctly
           expect(received1).toBeInstanceOf(Buffer);
           expect(received1.length).toBe(int16Data.byteLength);
-          
+
           // Verify the actual data content
-          const receivedInt16 = new Int16Array(received1.buffer, received1.byteOffset, received1.length / 2);
+          const receivedInt16 = new Int16Array(
+            received1.buffer,
+            received1.byteOffset,
+            received1.length / 2,
+          );
           expect(Array.from(receivedInt16)).toEqual(Array.from(int16Data));
-          
+
           // Test Float32Array
           const backendPromise2 = new Promise<Buffer>((resolve) => {
             connection.onBinaryMessage((data: Buffer) => {
               resolve(data);
             });
           });
-          
+
           ws.send(float32Data);
           const received2 = await backendPromise2;
-          
+
           // Verify the data was transmitted correctly
           expect(received2).toBeInstanceOf(Buffer);
           expect(received2.length).toBe(float32Data.byteLength);
-          
+
           // Verify the actual data content for floating point
           // Ensure proper alignment for Float32Array (4-byte aligned)
-          const alignedBuffer = received2.buffer.slice(received2.byteOffset, received2.byteOffset + received2.length);
+          const alignedBuffer = received2.buffer.slice(
+            received2.byteOffset,
+            received2.byteOffset + received2.length,
+          );
           const receivedFloat32 = new Float32Array(alignedBuffer);
           expect(receivedFloat32.length).toBe(float32Data.length);
-          
+
           for (let i = 0; i < float32Data.length; i++) {
             if (isFinite(float32Data[i])) {
               expect(receivedFloat32[i]).toBeCloseTo(float32Data[i], 5);
@@ -310,11 +327,73 @@ describe("Messages Integration Test", () => {
               expect(receivedFloat32[i]).toBe(float32Data[i]); // For Infinity, NaN
             }
           }
-          
+
           ws.close();
-        }
+        },
+      );
+    });
+
+    it("should handle binary data reception with different binaryType settings", async () => {
+      await withConnectedWsAndReference(
+        "binary data reception with binaryType changes",
+        async (ws, connection, isSimulated) => {
+          // Test data sets
+          const testDataSets = [
+            // Empty binary data
+            new Uint8Array([]),
+            // A few bytes of data
+            new Uint8Array([42, 255, 0, 128, 64]),
+          ];
+
+          // Start with default binaryType (should be "blob")
+          expect(ws.binaryType).toBe("blob");
+
+          for (let i = 0; i < testDataSets.length; i++) {
+            const testData = testDataSets[i];
+            
+            // Set up message listener for this test data
+            const messagePromise = new Promise<ArrayBuffer | Blob>((resolve, reject) => {
+              const timeout = setTimeout(() => reject(new Error('Message timeout')), 5000);
+              
+              const handler = (event: MessageEvent) => {
+                clearTimeout(timeout);
+                ws.removeEventListener("message", handler);
+                resolve(event.data);
+              };
+              
+              ws.addEventListener("message", handler);
+            });
+
+            // Send binary data from backend to client
+            connection.sendBinary(Buffer.from(testData));
+
+            // Receive and verify the data
+            const receivedData = await messagePromise;
+
+            if (i === 0) {
+              // First message: verify we get a Blob (default binaryType)
+              expect(receivedData).toBeInstanceOf(Blob);
+              const blob = receivedData as Blob;
+              expect(blob.size).toBe(testData.length);
+              
+              // Convert blob to ArrayBuffer to verify content
+              const arrayBuffer = await blob.arrayBuffer();
+              const receivedArray = new Uint8Array(arrayBuffer);
+              expect(receivedArray).toEqual(testData);
+
+              // Change binaryType to arraybuffer for next message
+              ws.binaryType = "arraybuffer";
+            } else {
+              // Second message: verify we get an ArrayBuffer
+              expect(receivedData).toBeInstanceOf(ArrayBuffer);
+              const receivedArray = new Uint8Array(receivedData as ArrayBuffer);
+              expect(receivedArray).toEqual(testData);
+            }
+          }
+
+          ws.close();
+        },
       );
     });
   });
 });
-

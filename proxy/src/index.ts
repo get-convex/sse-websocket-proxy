@@ -1,4 +1,4 @@
-import WebSocket from 'ws'
+import WsWebSocket from 'ws'
 import { IncomingMessage, ServerResponse, Server, createServer } from 'http'
 import {
   encodeConnectedMessage,
@@ -7,14 +7,9 @@ import {
   encodeDataMessage,
   encodeBinaryDataMessage,
   encodeWebSocketErrorMessage,
-  encodeWebSocketClosedMessage
+  encodeWebSocketClosedMessage,
 } from './sse-protocol.js'
-import {
-  decodeMessageRequest,
-  decodeBinaryData,
-  isTextMessageRequest,
-  isBinaryMessageRequest
-} from './messages-protocol.js'
+import { decodeMessageRequest, decodeBinaryData, isTextMessageRequest, isBinaryMessageRequest } from './messages-protocol.js'
 
 export interface ProxyConfig {
   backendUrl: string
@@ -25,7 +20,7 @@ export interface ProxyConfig {
 
 interface Client {
   sseResponse: ServerResponse
-  websocket: WebSocket
+  websocket: WsWebSocket
   sessionId: string
   lastActivity: number
 }
@@ -114,13 +109,11 @@ export class SSEWebSocketProxy {
       ...this.getCORSHeaders(),
     })
 
-    // Send initial connection event
-    this.sendSSEMessage(res, encodeConnectedMessage(sessionId))
-
     // Create WebSocket connection to backend, preserving the original path structure
     const wsUrl = this.buildWebSocketUrl(this.config.backendUrl, req.url!)
     console.log(`Connecting to WebSocket backend: ${wsUrl}`)
-    const websocket = new WebSocket(wsUrl)
+    const websocket = new WsWebSocket(wsUrl)
+    websocket.binaryType = 'arraybuffer'
 
     const client: Client = {
       sseResponse: res,
@@ -149,7 +142,7 @@ export class SSEWebSocketProxy {
     req: IncomingMessage,
     res: ServerResponse,
     options: { requireOpenWebSocket?: boolean } = {},
-    handler: (client: Client, data: T) => void | Promise<void>
+    handler: (client: Client, data: T) => void | Promise<void>,
   ): Promise<void> {
     const sessionId = req.headers['x-session-id'] as string
 
@@ -226,7 +219,9 @@ export class SSEWebSocketProxy {
       try {
         // Parse and validate the message request
         const messageRequest = decodeMessageRequest(body)
-        
+        console.log('proxy received', messageRequest, 'from client')
+
+        console.log('sending', messageRequest.data)
         if (isTextMessageRequest(messageRequest)) {
           // Send text message directly to WebSocket backend
           client.websocket.send(messageRequest.data)
@@ -237,18 +232,19 @@ export class SSEWebSocketProxy {
           client.websocket.send(binaryData)
           console.log(`Sent binary message for session ${client.sessionId}`)
         }
-        
+
         client.lastActivity = Date.now()
 
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ success: true }))
-
       } catch (error) {
         console.error(`Failed to process message for session ${client.sessionId}:`, error)
         res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ 
-          error: `Invalid message format: ${error instanceof Error ? error.message : 'Unknown error'}` 
-        }))
+        res.end(
+          JSON.stringify({
+            error: `Invalid message format: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }),
+        )
       }
     })
   }
@@ -313,7 +309,7 @@ export class SSEWebSocketProxy {
           client.websocket.close(code, reason)
         }
         // If already closing or closed, do nothing
-      }
+      },
     )
   }
 
@@ -345,10 +341,26 @@ export class SSEWebSocketProxy {
 
     websocket.on('message', (data, isBinary) => {
       client.lastActivity = Date.now()
+      console.log(
+        `proxy received`,
+        typeof data,
+        data instanceof ArrayBuffer ? 'ArrayBuffer' : data instanceof Blob ? 'Blob' : '?',
+        data,
+        { isBinary },
+        'from server',
+      )
 
       if (isBinary) {
         // Binary message - encode as base64 and send as binary SSE message
-        const base64Data = data.toString('base64')
+        let base64Data: string
+        if (data instanceof ArrayBuffer) {
+          base64Data = Buffer.from(data).toString('base64')
+        } else if (Buffer.isBuffer(data)) {
+          base64Data = data.toString('base64')
+        } else {
+          // Handle other binary types
+          base64Data = Buffer.from(data as any).toString('base64')
+        }
         this.sendSSEMessage(sseResponse, encodeBinaryDataMessage(base64Data, Date.now()))
         console.log(`Forwarded binary message to SSE client ${sessionId}`)
       } else {
@@ -392,10 +404,14 @@ export class SSEWebSocketProxy {
     if (res.destroyed) return
 
     const message = `data: ${encodedData}\n\n`
+    console.log('proxy writing', message, 'to client')
     res.write(message)
   }
 
-  private cleanupClient(sessionId: string, reason: 'sse-closed' | 'sse-aborted' | 'websocket-closed' | 'timeout' = 'websocket-closed'): void {
+  private cleanupClient(
+    sessionId: string,
+    reason: 'sse-closed' | 'sse-aborted' | 'websocket-closed' | 'timeout' = 'websocket-closed',
+  ): void {
     const client = this.clients.get(sessionId)
     if (client) {
       if (client.websocket && client.websocket.readyState === WebSocket.OPEN) {
@@ -468,7 +484,7 @@ export class SSEWebSocketProxy {
     return `session-${timestamp}-${random}-${random2}`
   }
 
-  private getWebSocketState(ws: WebSocket): string {
+  private getWebSocketState(ws: WsWebSocket): string {
     switch (ws.readyState) {
       case WebSocket.CONNECTING:
         return 'connecting'
@@ -524,7 +540,7 @@ export class SSEWebSocketProxy {
     if (!client) {
       return false
     }
-    
+
     this.sendSSEMessage(client.sseResponse, rawData)
     return true
   }
