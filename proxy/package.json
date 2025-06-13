@@ -12,6 +12,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./messages-protocol": {
+      "sse-ws-proxy-development": "./src/messages-protocol.ts",
+      "import": "./dist/messages-protocol.js",
+      "require": "./dist/messages-protocol.cjs"
+    },
     "./sse-protocol": {
       "sse-ws-proxy-development": "./src/sse-protocol.ts",
       "import": "./dist/sse-protocol.js",

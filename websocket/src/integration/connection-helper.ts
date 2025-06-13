@@ -46,7 +46,7 @@ export async function withWebsocketConnection<T>(
       backendConnectionPromise,
       // Wait for WebSocket to be open
       new Promise<void>((resolve, reject) => {
-        if (webSocket.readyState === 1) { // OPEN
+        if (webSocket.readyState === WebSocket.OPEN) { // OPEN
           resolve();
         } else {
           const timeout = setTimeout(() => reject(new Error('WebSocket connection timeout')), 5000);

@@ -8,6 +8,7 @@ export interface WSConnection {
   send(data: string): void;
   close(code?: number, reason?: string): void;
   onMessage(callback: (data: string) => void): void;
+  onBinaryMessage(callback: (data: Buffer) => void): void;
   onClose(callback: (code: number, reason: string) => void): void;
   onError(callback: (error: Error) => void): void;
   readonly readyState: number;
@@ -124,6 +125,19 @@ export class WSTestBackend {
       onMessage: (callback: (data: string) => void) => {
         ws.on('message', (data) => {
           callback(data.toString());
+        });
+      },
+      
+      onBinaryMessage: (callback: (data: Buffer) => void) => {
+        ws.on('message', (data) => {
+          if (Buffer.isBuffer(data)) {
+            callback(data);
+          } else if (data instanceof ArrayBuffer) {
+            callback(Buffer.from(data));
+          } else {
+            // Convert other types to Buffer
+            callback(Buffer.from(data as any));
+          }
         });
       },
       

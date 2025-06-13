@@ -5,9 +5,16 @@ import {
   encodePingMessage,
   encodeWebSocketConnectedMessage,
   encodeDataMessage,
+  encodeBinaryDataMessage,
   encodeWebSocketErrorMessage,
   encodeWebSocketClosedMessage
 } from './sse-protocol.js'
+import {
+  decodeMessageRequest,
+  decodeBinaryData,
+  isTextMessageRequest,
+  isBinaryMessageRequest
+} from './messages-protocol.js'
 
 export interface ProxyConfig {
   backendUrl: string
@@ -209,21 +216,40 @@ export class SSEWebSocketProxy {
       return
     }
 
-    // Read the raw request body (don't parse as JSON)
+    // Read the request body as JSON
     let body = ''
     req.on('data', (chunk) => {
       body += chunk.toString()
     })
 
     req.on('end', () => {
-      // Send the raw message data to the WebSocket backend
-      client.websocket.send(body)
-      client.lastActivity = Date.now()
+      try {
+        // Parse and validate the message request
+        const messageRequest = decodeMessageRequest(body)
+        
+        if (isTextMessageRequest(messageRequest)) {
+          // Send text message directly to WebSocket backend
+          client.websocket.send(messageRequest.data)
+          console.log(`Sent text message for session ${client.sessionId}`)
+        } else if (isBinaryMessageRequest(messageRequest)) {
+          // Decode base64 data and send as binary to WebSocket backend
+          const binaryData = decodeBinaryData(messageRequest.data)
+          client.websocket.send(binaryData)
+          console.log(`Sent binary message for session ${client.sessionId}`)
+        }
+        
+        client.lastActivity = Date.now()
 
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ success: true }))
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true }))
 
-      console.log(`Sent raw message for session ${client.sessionId}`)
+      } catch (error) {
+        console.error(`Failed to process message for session ${client.sessionId}:`, error)
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ 
+          error: `Invalid message format: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        }))
+      }
     })
   }
 
@@ -317,14 +343,19 @@ export class SSEWebSocketProxy {
       this.sendSSEMessage(sseResponse, encodeWebSocketConnectedMessage(sessionId, Date.now()))
     })
 
-    websocket.on('message', (data) => {
+    websocket.on('message', (data, isBinary) => {
       client.lastActivity = Date.now()
 
-      // Forward WebSocket message to SSE client with raw data
-      // Don't attempt to parse it - just pass it through as-is
-      this.sendSSEMessage(sseResponse, encodeDataMessage(data.toString(), Date.now()))
-
-      console.log(`Forwarded message to SSE client ${sessionId}`)
+      if (isBinary) {
+        // Binary message - encode as base64 and send as binary SSE message
+        const base64Data = data.toString('base64')
+        this.sendSSEMessage(sseResponse, encodeBinaryDataMessage(base64Data, Date.now()))
+        console.log(`Forwarded binary message to SSE client ${sessionId}`)
+      } else {
+        // Text message - send as regular text SSE message
+        this.sendSSEMessage(sseResponse, encodeDataMessage(data.toString(), Date.now()))
+        console.log(`Forwarded text message to SSE client ${sessionId}`)
+      }
     })
 
     websocket.on('error', (error) => {

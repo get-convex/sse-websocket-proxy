@@ -28,6 +28,12 @@ export interface DataMessage {
   timestamp: number;
 }
 
+export interface BinaryDataMessage {
+  type: 'binary-message';
+  data: string; // Base64 encoded binary data
+  timestamp: number;
+}
+
 export interface WebSocketErrorMessage {
   type: 'websocket-error';
   error: string; // Error message
@@ -48,6 +54,7 @@ export type SSEMessage =
   | PingMessage
   | WebSocketConnectedMessage
   | DataMessage
+  | BinaryDataMessage
   | WebSocketErrorMessage
   | WebSocketClosedMessage;
 
@@ -81,6 +88,15 @@ export function encodeDataMessage(data: string, timestamp: number): string {
   const message: DataMessage = {
     type: 'message',
     data,
+    timestamp
+  };
+  return JSON.stringify(message);
+}
+
+export function encodeBinaryDataMessage(base64Data: string, timestamp: number): string {
+  const message: BinaryDataMessage = {
+    type: 'binary-message',
+    data: base64Data,
     timestamp
   };
   return JSON.stringify(message);
@@ -143,6 +159,10 @@ export function isWebSocketConnectedMessage(msg: SSEMessage): msg is WebSocketCo
 
 export function isDataMessage(msg: SSEMessage): msg is DataMessage {
   return msg.type === 'message';
+}
+
+export function isBinaryDataMessage(msg: SSEMessage): msg is BinaryDataMessage {
+  return msg.type === 'binary-message';
 }
 
 export function isWebSocketErrorMessage(msg: SSEMessage): msg is WebSocketErrorMessage {

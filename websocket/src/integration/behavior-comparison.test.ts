@@ -1,76 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createProxiedWebSocketClass } from "../node.js";
-import getPort from "get-port";
-
-/**
- * Run the same test logic against both native and simulated WebSockets
- */
-async function runBehaviorComparison(
-  testName: string,
-  testLogic: (
-    WebSocketClass: any, 
-    backendUrl: string, 
-    isSimulated: boolean, 
-    clientConnection: Promise<any>
-  ) => Promise<void>,
-): Promise<{ 
-  nativeBackend: any; 
-  simulatedBackend: any; 
-}> {
-  const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
-  const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
-
-  // Always run native WebSocket first to establish the expected behavior
-  
-  const nativeBackendPort = await getPort();
-  const nativeBackend = await WSTestBackend.create({ port: nativeBackendPort });
-  
-  const NativeWebSocketClass = createProxiedWebSocketClass(false);
-  const nativeBackendUrl = `ws://localhost:${nativeBackendPort}`;
-  
-  // Get the connection promise for the native backend
-  const nativeConnectionPromise = nativeBackend.wsConnection();
-  
-  await testLogic(NativeWebSocketClass, nativeBackendUrl, false, nativeConnectionPromise);
-  
-  // Run test with simulated WebSocket using separate backend
-  
-  const simulatedBackendPort = await getPort();
-  const proxyPort = await getPort();
-  
-  const simulatedBackend = await WSTestBackend.create({ port: simulatedBackendPort });
-  const proxy = new SSEWebSocketProxy({
-    port: proxyPort,
-    backendUrl: `http://localhost:${simulatedBackendPort}`,
-  });
-  await proxy.start();
-  
-  try {
-    const SimulatedWebSocketClass = createProxiedWebSocketClass(
-      true,
-      `http://localhost:${proxyPort}`,
-    );
-    const simulatedBackendUrl = `ws://localhost:${simulatedBackendPort}`;
-    
-    // Get the connection promise for the simulated backend
-    const simulatedConnectionPromise = simulatedBackend.wsConnection();
-    
-    await testLogic(SimulatedWebSocketClass, simulatedBackendUrl, true, simulatedConnectionPromise);
-
-    return { 
-      nativeBackend,
-      simulatedBackend 
-    };
-  } finally {
-    await proxy.stop();
-    await simulatedBackend.stop();
-    await nativeBackend.stop();
-  }
-}
+import { describe, it, expect } from "vitest";
+import { withWsAndReference } from "./behavior-comparison-helper.js";
 
 describe("WebSocket Behavior Comparison", () => {
   it("should connect, send message, receive it on backend, then throw identical errors for close(1001)", async () => {
-    await runBehaviorComparison(
+    await withWsAndReference(
       "connect → send → close(1001) validation",
       async (WebSocketClass, backendUrl, isSimulated, clientConnection) => {
         const ws = new WebSocketClass(backendUrl);
@@ -134,7 +67,7 @@ describe("WebSocket Behavior Comparison", () => {
     ];
 
     for (const testCase of invalidCodes) {
-      await runBehaviorComparison(
+      await withWsAndReference(
         `close(${testCase.code}) validation`,
         async (WebSocketClass, backendUrl, isSimulated, clientConnection) => {
           const ws = new WebSocketClass(backendUrl);
@@ -164,7 +97,7 @@ describe("WebSocket Behavior Comparison", () => {
     ];
 
     for (const testCase of validCodes) {
-      await runBehaviorComparison(
+      await withWsAndReference(
         `close(${testCase.code}) validation`,
         async (WebSocketClass, backendUrl, isSimulated, clientConnection) => {
           const ws = new WebSocketClass(backendUrl);
@@ -210,7 +143,7 @@ describe("WebSocket Behavior Comparison", () => {
       "This is a longer message that contains multiple words and should be transmitted correctly through the WebSocket proxy without any data corruption or truncation issues."
     ];
 
-    await runBehaviorComparison(
+    await withWsAndReference(
       "message transmission for various data types",
       async (WebSocketClass, backendUrl, isSimulated, clientConnection) => {
         const ws = new WebSocketClass(backendUrl);

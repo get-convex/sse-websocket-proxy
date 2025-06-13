@@ -1,25 +1,7 @@
 import { decodeSSEMessage, type SSEMessage } from 'sse-websocket-proxy/sse-protocol';
+import { encodeTextMessageRequest } from 'sse-websocket-proxy/messages-protocol';
 
-// WebSocket states
-export const CONNECTING = 0;
-export const OPEN = 1;
-export const CLOSING = 2;
-export const CLOSED = 3;
 
-// Event types
-interface WebSocketMessageEvent extends Event {
-  data: any;
-}
-
-interface WebSocketErrorEvent extends Event {
-  error: Error;
-}
-
-interface WebSocketCloseEvent extends Event {
-  code: number;
-  reason: string;
-  wasClean: boolean;
-}
 
 let EventSource = globalThis.EventSource;
 export function setEventSource(es: typeof EventSource) {
@@ -31,7 +13,7 @@ export function setEventSource(es: typeof EventSource) {
  */
 export class SimulatedWebsocket extends EventTarget {
   public readonly url: string;
-  public readyState: number = CONNECTING;
+  public readyState: number = WebSocket.CONNECTING;
   public readonly protocol: string = "";
   public readonly extensions: string = "";
 
@@ -43,9 +25,9 @@ export class SimulatedWebsocket extends EventTarget {
 
   // Event handlers (WebSocket-style)
   public onopen: ((event: Event) => void) | null = null;
-  public onmessage: ((event: WebSocketMessageEvent) => void) | null = null;
-  public onerror: ((event: WebSocketErrorEvent) => void) | null = null;
-  public onclose: ((event: WebSocketCloseEvent) => void) | null = null;
+  public onmessage: ((event: MessageEvent) => void) | null = null;
+  public onerror: ((event: Event) => void) | null = null;
+  public onclose: ((event: Event) => void) | null = null;
 
   constructor(url: string | URL, protocols: undefined | string | string[], proxyUrl: string) {
     super();
@@ -123,7 +105,7 @@ export class SimulatedWebsocket extends EventTarget {
         return;
       }
 
-      if (this.readyState === OPEN) {
+      if (this.readyState === WebSocket.OPEN) {
         // Connection was established but now has protocol error - close with 1006
         this.handleClose(1006, "SSE connection error", false);
       } else {
@@ -141,18 +123,28 @@ export class SimulatedWebsocket extends EventTarget {
 
       case "websocket-connected":
         this.isWebSocketConnected = true;
-        this.readyState = OPEN;
+        this.readyState = WebSocket.OPEN;
         const openEvent = new Event("open");
         this.dispatchEvent(openEvent);
         if (this.onopen) this.onopen(openEvent);
         break;
 
       case "message":
-        const messageEvent = Object.assign(new Event("message"), {
+        const messageEvent = new MessageEvent("message", {
           data: message.data
-        }) as WebSocketMessageEvent;
+        });
         this.dispatchEvent(messageEvent);
         if (this.onmessage) this.onmessage(messageEvent);
+        break;
+
+      case "binary-message":
+        // Decode base64 data back to ArrayBuffer
+        const binaryData = this.decodeBinaryDataBrowser(message.data);
+        const binaryMessageEvent = new MessageEvent("message", {
+          data: binaryData
+        });
+        this.dispatchEvent(binaryMessageEvent);
+        if (this.onmessage) this.onmessage(binaryMessageEvent);
         break;
 
       case "websocket-error":
@@ -174,7 +166,7 @@ export class SimulatedWebsocket extends EventTarget {
 
   private handleError(error: Error): void {
     // Set readyState to CLOSED (connection failed)
-    this.readyState = CLOSED;
+    this.readyState = WebSocket.CLOSED;
 
     // Close EventSource if it exists
     if (this.eventSource) {
@@ -185,7 +177,7 @@ export class SimulatedWebsocket extends EventTarget {
     // Fire error event
     const errorEvent = Object.assign(new Event("error"), {
       error: error
-    }) as WebSocketErrorEvent;
+    });
     this.dispatchEvent(errorEvent);
     if (this.onerror) this.onerror(errorEvent);
 
@@ -195,11 +187,11 @@ export class SimulatedWebsocket extends EventTarget {
 
   private handleClose(code: number, reason: string, wasClean: boolean): void {
     // Only fire close event if not already closed
-    if (this.readyState === CLOSED) {
+    if (this.readyState === WebSocket.CLOSED) {
       return;
     }
 
-    this.readyState = CLOSED;
+    this.readyState = WebSocket.CLOSED;
 
     if (this.eventSource) {
       this.eventSource.close();
@@ -210,13 +202,13 @@ export class SimulatedWebsocket extends EventTarget {
       code: code,
       reason: reason,
       wasClean: wasClean
-    }) as WebSocketCloseEvent;
+    });
     this.dispatchEvent(closeEvent);
     if (this.onclose) this.onclose(closeEvent);
   }
 
   public send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
-    if (this.readyState !== OPEN) {
+    if (this.readyState !== WebSocket.OPEN) {
       throw new Error("WebSocket is not open");
     }
 
@@ -224,22 +216,21 @@ export class SimulatedWebsocket extends EventTarget {
       throw new Error("No session ID available");
     }
 
-    // Send the data exactly as provided, like a real WebSocket
+    // Prepare message based on data type
     let messageToSend: string;
     if (typeof data === "string") {
-      messageToSend = data;
+      // Text message
+      messageToSend = encodeTextMessageRequest(data);
     } else {
-      // For binary data, convert to string representation
-      // TODO: Implement proper binary data support
-      messageToSend = data.toString();
+      // Binary data - need to convert to base64
+      messageToSend = this.handleBinaryData(data);
     }
 
-    // Send via HTTP POST to the proxy
-    // Send the raw message data directly to the proxy
+    // Send via HTTP POST to the proxy using the new protocol
     fetch(`${this.proxyUrl}/messages`, {
       method: "POST",
       headers: {
-        "Content-Type": "text/plain",
+        "Content-Type": "application/json",
         "X-Session-Id": this.sessionId,
       },
       body: messageToSend,
@@ -249,13 +240,71 @@ export class SimulatedWebsocket extends EventTarget {
     });
   }
 
+  private handleBinaryData(data: ArrayBufferLike | Blob | ArrayBufferView): string {
+    if (data instanceof Blob) {
+      // For Blob, we need to handle this asynchronously, but WebSocket.send is synchronous
+      // We'll convert to ArrayBuffer synchronously using FileReaderSync if available,
+      // otherwise throw an error suggesting to convert Blob to ArrayBuffer first
+      throw new Error("Blob support requires conversion to ArrayBuffer first. Use blob.arrayBuffer() and await the result before calling send().");
+    }
+
+    // Convert to Uint8Array for consistent handling
+    let uint8Array: Uint8Array;
+    if (data instanceof ArrayBuffer) {
+      uint8Array = new Uint8Array(data);
+    } else if (data instanceof Uint8Array) {
+      uint8Array = data;
+    } else {
+      // ArrayBufferView (like DataView, typed arrays) or SharedArrayBuffer
+      if ('buffer' in data && 'byteOffset' in data && 'byteLength' in data) {
+        // ArrayBufferView
+        uint8Array = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+      } else {
+        // SharedArrayBuffer or other ArrayBufferLike
+        uint8Array = new Uint8Array(data);
+      }
+    }
+
+    // Use browser-compatible base64 encoding
+    return this.encodeBinaryMessageRequestBrowser(uint8Array);
+  }
+
+  private encodeBinaryMessageRequestBrowser(uint8Array: Uint8Array): string {
+    // Convert Uint8Array to base64 using browser-compatible method
+    let binaryString = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binaryString += String.fromCharCode(uint8Array[i]);
+    }
+    const base64Data = btoa(binaryString);
+    
+    const message = {
+      type: 'binary',
+      data: base64Data
+    };
+    return JSON.stringify(message);
+  }
+
+  private decodeBinaryDataBrowser(base64Data: string): ArrayBuffer {
+    // Decode base64 to binary string using browser-compatible method
+    const binaryString = atob(base64Data);
+    
+    // Convert binary string to Uint8Array
+    const uint8Array = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      uint8Array[i] = binaryString.charCodeAt(i);
+    }
+    
+    // Return ArrayBuffer
+    return uint8Array.buffer;
+  }
+
   // Test utility to get the session ID
   public getSessionId(): string | null {
     return this.sessionId;
   }
 
   public close(code?: number, reason?: string): void {
-    if (this.readyState === CLOSED || this.readyState === CLOSING) {
+    if (this.readyState === WebSocket.CLOSED || this.readyState === WebSocket.CLOSING) {
       return;
     }
 
@@ -271,7 +320,7 @@ export class SimulatedWebsocket extends EventTarget {
     }
 
     this.userInitiatedClose = true;
-    this.readyState = CLOSING;
+    this.readyState = WebSocket.CLOSING;
 
     if (!this.isWebSocketConnected) {
       // WebSocket connection hasn't been established yet, close locally

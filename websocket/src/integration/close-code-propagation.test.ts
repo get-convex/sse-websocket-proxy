@@ -8,7 +8,7 @@ describe("Close Code Propagation", () => {
 
       // Wait for the WebSocket to be fully open
       await new Promise<void>((resolve) => {
-        if (webSocket.readyState === 1) { // OPEN
+        if (webSocket.readyState === WebSocket.OPEN) { // OPEN
           resolve();
         } else {
           webSocket.addEventListener("open", () => {
@@ -67,7 +67,7 @@ describe("Close Code Propagation", () => {
       await withWebsocketConnection(async ({ webSocket, connection, testBackend }) => {
         // Wait for connection to be ready
         await new Promise<void>((resolve) => {
-          if (webSocket.readyState === 1) {
+          if (webSocket.readyState === WebSocket.OPEN) {
             resolve();
           } else {
             webSocket.addEventListener("open", () => resolve());
@@ -114,7 +114,7 @@ describe("Close Code Propagation", () => {
 
       // Wait for the WebSocket to be fully open
       await new Promise<void>((resolve) => {
-        if (webSocket.readyState === 1) { // OPEN
+        if (webSocket.readyState === WebSocket.OPEN) { // OPEN
           resolve();
         } else {
           webSocket.addEventListener("open", () => {
@@ -155,7 +155,7 @@ describe("Close Code Propagation", () => {
       await withWebsocketConnection(async ({ webSocket, connection, testBackend }) => {
         // Wait for connection to be ready
         await new Promise<void>((resolve) => {
-          if (webSocket.readyState === 1) {
+          if (webSocket.readyState === WebSocket.OPEN) {
             resolve();
           } else {
             webSocket.addEventListener("open", () => resolve());
@@ -196,7 +196,7 @@ describe("Close Code Propagation", () => {
       await withWebsocketConnection(async ({ webSocket, connection, testBackend }) => {
         // Wait for connection to be ready
         await new Promise<void>((resolve) => {
-          if (webSocket.readyState === 1) {
+          if (webSocket.readyState === WebSocket.OPEN) {
             resolve();
           } else {
             webSocket.addEventListener("open", () => resolve());

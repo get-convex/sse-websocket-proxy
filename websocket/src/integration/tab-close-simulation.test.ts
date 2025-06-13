@@ -9,7 +9,7 @@ describe('Tab Close Simulation', () => {
       
       // Wait for connection to be ready
       await new Promise<void>((resolve) => {
-        if (webSocket.readyState === 1) {
+        if (webSocket.readyState === WebSocket.OPEN) {
           resolve();
         } else {
           webSocket.addEventListener("open", () => resolve());
@@ -56,7 +56,7 @@ describe('Tab Close Simulation', () => {
       
       // Wait for connection to be ready
       await new Promise<void>((resolve) => {
-        if (webSocket.readyState === 1) {
+        if (webSocket.readyState === WebSocket.OPEN) {
           resolve();
         } else {
           webSocket.addEventListener("open", () => resolve());

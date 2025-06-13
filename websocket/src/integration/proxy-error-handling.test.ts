@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { SimulatedWebsocket, CLOSED, CONNECTING } from "../node.js";
+import { describe, it, expect, afterEach } from "vitest";
+import { SimulatedWebsocket, createProxiedWebSocketClass } from "../node.js";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import getPort from "get-port";
+import { SSEWebSocketProxy } from "sse-websocket-proxy";
+import { WSTestBackend } from "sse-websocket-proxy/ws-test-backend";
 
 describe("Proxy Error Handling", () => {
   let simulatedWs: SimulatedWebsocket;
@@ -34,7 +36,7 @@ describe("Proxy Error Handling", () => {
     await errorPromise;
 
     // Verify WebSocket state
-    expect(simulatedWs.readyState).toBe(CLOSED);
+    expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
     
     // Verify error was fired
     expect(errorReceived).toBe(true);
@@ -59,7 +61,7 @@ describe("Proxy Error Handling", () => {
     simulatedWs = new SimulatedWebsocket(backendUrl, undefined, `http://localhost:${nonExistentPort}`);
     
     // Should start in CONNECTING state
-    expect(simulatedWs.readyState).toBe(CONNECTING);
+    expect(simulatedWs.readyState).toBe(WebSocket.CONNECTING);
   });
 
   it("should handle proxy returning 404", async () => {
@@ -95,7 +97,7 @@ describe("Proxy Error Handling", () => {
       await errorPromise;
 
       // Verify WebSocket state and error handling
-      expect(simulatedWs.readyState).toBe(CLOSED);
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
       expect(errorReceived).toBe(true);
       expect(errorEvent).toBeDefined();
       expect(errorEvent.error).toBeInstanceOf(Error);
@@ -138,7 +140,7 @@ describe("Proxy Error Handling", () => {
       await errorPromise;
 
       // Verify WebSocket state and error handling
-      expect(simulatedWs.readyState).toBe(CLOSED);
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
       expect(errorReceived).toBe(true);
       expect(errorEvent).toBeDefined();
       expect(errorEvent.error).toBeInstanceOf(Error);
@@ -149,7 +151,6 @@ describe("Proxy Error Handling", () => {
   });
 
   it("should handle proxy reachable but backend WebSocket unreachable", async () => {
-    const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
     
     const proxyPort = await getPort();
     const nonExistentBackendPort = await getPort(); // Port with no server
@@ -182,7 +183,7 @@ describe("Proxy Error Handling", () => {
       await errorPromise;
 
       // Verify WebSocket state and error handling
-      expect(simulatedWs.readyState).toBe(CLOSED);
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
       expect(errorReceived).toBe(true);
       expect(errorEvent).toBeDefined();
       expect(errorEvent.error).toBeInstanceOf(Error);
@@ -197,7 +198,6 @@ describe("Proxy Error Handling", () => {
     // This test verifies that WebSocket errors from the backend are properly
     // forwarded through the proxy to the SimulatedWebsocket as error events
     
-    const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
     
     const proxyPort = await getPort();
     const nonExistentBackendPort = await getPort();
@@ -214,7 +214,6 @@ describe("Proxy Error Handling", () => {
       
       // Track all events
       let errorEventReceived = false;
-      let closeEventReceived = false;
       let openEventReceived = false;
       
       const allEventsPromise = new Promise<void>((resolve) => {
@@ -231,7 +230,7 @@ describe("Proxy Error Handling", () => {
         });
         
         simulatedWs.addEventListener("close", () => {
-          closeEventReceived = true;
+          // Close event may occur but we're primarily testing error events
         });
       });
 
@@ -242,7 +241,7 @@ describe("Proxy Error Handling", () => {
       expect(errorEventReceived).toBe(true);  // Should get error from WebSocket failure
       // Note: WebSocket connection to non-existent backend results in both error AND close events
       // because the WebSocket connection attempt completes but immediately fails
-      expect(simulatedWs.readyState).toBe(CLOSED);
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
       
     } finally {
       await proxy.stop();
@@ -251,24 +250,22 @@ describe("Proxy Error Handling", () => {
 
   it("should handle messages endpoint errors after connection is open (should be 1006)", async () => {
     // Test /messages returning 404/500 after WebSocket is already open
-    const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
-    const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
     
     const proxyPort = await getPort();
     const backendPort = await getPort();
     
     // Start a real backend
     const testBackend = await WSTestBackend.create({ port: backendPort });
-    
-    // Start proxy pointing to real backend
-    const proxy = new SSEWebSocketProxy({
-      port: proxyPort,
-      backendUrl: `http://localhost:${backendPort}`,
-    });
-    
-    await proxy.start();
+    let proxy: SSEWebSocketProxy | null = null;
     
     try {
+      // Start proxy pointing to real backend
+      proxy = new SSEWebSocketProxy({
+        port: proxyPort,
+        backendUrl: `http://localhost:${backendPort}`,
+      });
+      
+      await proxy.start();
       const backendUrl = `ws://localhost:${backendPort}`;
       
       // Wait for connection to be established
@@ -281,7 +278,7 @@ describe("Proxy Error Handling", () => {
       });
       
       // Connection should be open at this point
-      expect(simulatedWs.readyState).toBe(1); // OPEN
+      expect(simulatedWs.readyState).toBe(WebSocket.OPEN);
       
       // Stop the proxy to make messages endpoint unavailable
       await proxy.stop();
@@ -307,34 +304,34 @@ describe("Proxy Error Handling", () => {
       expect(closeEventReceived).toBe(true);
       expect(closeEvent.code).toBe(1006);
       expect(closeEvent.wasClean).toBe(false);
-      expect(simulatedWs.readyState).toBe(3); // CLOSED
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
       
     } finally {
+      if (proxy) {
+        await proxy.stop();
+      }
       await testBackend.stop();
-      // Proxy already stopped above
     }
   });
 
   it("should handle close endpoint errors as unclean close (1006)", async () => {
     // Test /close returning errors - should be treated as unclean close
-    const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
-    const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
     
     const proxyPort = await getPort();
     const backendPort = await getPort();
     
     // Start a real backend
     const testBackend = await WSTestBackend.create({ port: backendPort });
-    
-    // Start proxy pointing to real backend
-    const proxy = new SSEWebSocketProxy({
-      port: proxyPort,
-      backendUrl: `http://localhost:${backendPort}`,
-    });
-    
-    await proxy.start();
+    let proxy: SSEWebSocketProxy | null = null;
     
     try {
+      // Start proxy pointing to real backend
+      proxy = new SSEWebSocketProxy({
+        port: proxyPort,
+        backendUrl: `http://localhost:${backendPort}`,
+      });
+      
+      await proxy.start();
       const backendUrl = `ws://localhost:${backendPort}`;
       
       // Wait for connection to be established
@@ -347,7 +344,7 @@ describe("Proxy Error Handling", () => {
       });
       
       // Connection should be open
-      expect(simulatedWs.readyState).toBe(1); // OPEN
+      expect(simulatedWs.readyState).toBe(WebSocket.OPEN);
       
       // Stop the proxy to make close endpoint unavailable
       await proxy.stop();
@@ -373,11 +370,13 @@ describe("Proxy Error Handling", () => {
       expect(closeEventReceived).toBe(true);
       expect(closeEvent.code).toBe(1006);
       expect(closeEvent.wasClean).toBe(false);
-      expect(simulatedWs.readyState).toBe(3); // CLOSED
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
       
     } finally {
+      if (proxy) {
+        await proxy.stop();
+      }
       await testBackend.stop();
-      // Proxy already stopped above
     }
   });
 
@@ -388,19 +387,16 @@ describe("Proxy Error Handling", () => {
       const backendPort = await getPort();
       const proxyPort = await getPort();
 
-      const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
-      const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
-
       const backend = await WSTestBackend.create({ port: backendPort });
-      const proxy = new SSEWebSocketProxy({
-        port: proxyPort,
-        backendUrl: `http://localhost:${backendPort}`,
-      });
-      await proxy.start();
+      let proxy: SSEWebSocketProxy | null = null;
 
       try {
-        const { createProxiedWebSocketClass } = await import("../node.js");
-        const SimulatedWebSocketClass = createProxiedWebSocketClass(
+        proxy = new SSEWebSocketProxy({
+          port: proxyPort,
+          backendUrl: `http://localhost:${backendPort}`,
+        });
+        await proxy.start();
+            const SimulatedWebSocketClass = createProxiedWebSocketClass(
           true,
           `http://localhost:${proxyPort}`,
         );
@@ -462,7 +458,9 @@ describe("Proxy Error Handling", () => {
         expect(result.wasClean).toBe(false); // Error state, not clean close
 
       } finally {
-        await proxy.stop();
+        if (proxy) {
+          await proxy.stop();
+        }
         await backend.stop();
       }
     });
@@ -472,19 +470,16 @@ describe("Proxy Error Handling", () => {
       const backendPort = await getPort();
       const proxyPort = await getPort();
 
-      const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
-      const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
-
       const backend = await WSTestBackend.create({ port: backendPort });
-      const proxy = new SSEWebSocketProxy({
-        port: proxyPort,
-        backendUrl: `http://localhost:${backendPort}`,
-      });
-      await proxy.start();
+      let proxy: SSEWebSocketProxy | null = null;
 
       try {
-        const { createProxiedWebSocketClass } = await import("../node.js");
-        const SimulatedWebSocketClass = createProxiedWebSocketClass(
+        proxy = new SSEWebSocketProxy({
+          port: proxyPort,
+          backendUrl: `http://localhost:${backendPort}`,
+        });
+        await proxy.start();
+            const SimulatedWebSocketClass = createProxiedWebSocketClass(
           true,
           `http://localhost:${proxyPort}`,
         );
@@ -546,7 +541,9 @@ describe("Proxy Error Handling", () => {
         expect(result.error.message).toMatch(/malformed data from proxy|Failed to decode SSE message|Invalid SSE message format/i);
 
       } finally {
-        await proxy.stop();
+        if (proxy) {
+          await proxy.stop();
+        }
         await backend.stop();
       }
     });
@@ -555,19 +552,16 @@ describe("Proxy Error Handling", () => {
       const backendPort = await getPort();
       const proxyPort = await getPort();
 
-      const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
-      const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
-
       const backend = await WSTestBackend.create({ port: backendPort });
-      const proxy = new SSEWebSocketProxy({
-        port: proxyPort,
-        backendUrl: `http://localhost:${backendPort}`,
-      });
-      await proxy.start();
+      let proxy: SSEWebSocketProxy | null = null;
 
       try {
-        const { createProxiedWebSocketClass } = await import("../node.js");
-        const SimulatedWebSocketClass = createProxiedWebSocketClass(
+        proxy = new SSEWebSocketProxy({
+          port: proxyPort,
+          backendUrl: `http://localhost:${backendPort}`,
+        });
+        await proxy.start();
+            const SimulatedWebSocketClass = createProxiedWebSocketClass(
           true,
           `http://localhost:${proxyPort}`,
         );
@@ -619,7 +613,9 @@ describe("Proxy Error Handling", () => {
         expect(result1.error.message).toMatch(/malformed data from proxy|Failed to decode SSE message/i);
 
       } finally {
-        await proxy.stop();
+        if (proxy) {
+          await proxy.stop();
+        }
         await backend.stop();
       }
     });

@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { SimulatedWebsocket, CONNECTING, OPEN, CLOSING, CLOSED } from "../node.js";
-import { createServer, IncomingMessage, ServerResponse } from "http";
+import { describe, it, expect, afterEach } from "vitest";
+import { SimulatedWebsocket } from "../node.js";
 import getPort from "get-port";
+import { SSEWebSocketProxy } from "sse-websocket-proxy";
+import { WSTestBackend } from "sse-websocket-proxy/ws-test-backend";
 
 describe("Invalid State Transitions", () => {
   let simulatedWs: SimulatedWebsocket;
@@ -12,15 +13,15 @@ describe("Invalid State Transitions", () => {
     }
   });
 
-  it("should throw when calling send() during CONNECTING state", async () => {
+  it("should throw when calling send() during WebSocket.CONNECTING state", async () => {
     const nonExistentPort = await getPort();
     const backendUrl = "ws://localhost:8999";
     
-    // Create SimulatedWebSocket - it starts in CONNECTING state
+    // Create SimulatedWebSocket - it starts in WebSocket.CONNECTING state
     simulatedWs = new SimulatedWebsocket(backendUrl, undefined, `http://localhost:${nonExistentPort}`);
     
-    // Should be in CONNECTING state initially
-    expect(simulatedWs.readyState).toBe(CONNECTING);
+    // Should be in WebSocket.CONNECTING state initially
+    expect(simulatedWs.readyState).toBe(WebSocket.CONNECTING);
     
     // Trying to send should throw an error
     expect(() => {
@@ -28,7 +29,7 @@ describe("Invalid State Transitions", () => {
     }).toThrow("WebSocket is not open");
   });
 
-  it("should handle close() during CONNECTING state gracefully", async () => {
+  it("should handle close() during WebSocket.CONNECTING state gracefully", async () => {
     const nonExistentPort = await getPort();
     const backendUrl = "ws://localhost:8999";
     
@@ -50,15 +51,15 @@ describe("Invalid State Transitions", () => {
         errorEventReceived = true;
       });
       
-      // Should be in CONNECTING state initially
-      expect(simulatedWs.readyState).toBe(CONNECTING);
+      // Should be in WebSocket.CONNECTING state initially
+      expect(simulatedWs.readyState).toBe(WebSocket.CONNECTING);
       
       // Call close() while still connecting - this should work without throwing
       simulatedWs.close(1000, "Client initiated close during connecting");
     });
     
-    // Should go directly to CLOSED state since no WebSocket connection was established
-    expect(simulatedWs.readyState).toBe(CLOSED);
+    // Should go directly to WebSocket.CLOSED state since no WebSocket connection was established
+    expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
     
     // Wait for close event
     await closePromise;
@@ -71,13 +72,11 @@ describe("Invalid State Transitions", () => {
     expect(closeEvent.reason).toBe("Client initiated close during connecting");
     expect(closeEvent.wasClean).toBe(true);
     
-    // Should end up in CLOSED state
-    expect(simulatedWs.readyState).toBe(CLOSED);
+    // Should end up in WebSocket.CLOSED state
+    expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
   });
 
   it("should be idempotent when calling close() multiple times", async () => {
-    const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
-    const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
     
     const proxyPort = await getPort();
     const backendPort = await getPort();
@@ -103,7 +102,7 @@ describe("Invalid State Transitions", () => {
         });
       });
       
-      expect(simulatedWs.readyState).toBe(OPEN);
+      expect(simulatedWs.readyState).toBe(WebSocket.OPEN);
       
       // Track close events
       let closeEventCount = 0;
@@ -113,7 +112,7 @@ describe("Invalid State Transitions", () => {
       
       // Call close multiple times - should be idempotent
       simulatedWs.close(1000, "First close");
-      expect(simulatedWs.readyState).toBe(CLOSING);
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSING);
       
       simulatedWs.close(1001, "Second close - should be ignored");
       simulatedWs.close(1002, "Third close - should be ignored");
@@ -121,7 +120,7 @@ describe("Invalid State Transitions", () => {
       // Wait for actual close
       await new Promise<void>((resolve) => {
         const checkClosed = () => {
-          if (simulatedWs.readyState === CLOSED) {
+          if (simulatedWs.readyState === WebSocket.CLOSED) {
             resolve();
           } else {
             setTimeout(checkClosed, 10);
@@ -132,7 +131,7 @@ describe("Invalid State Transitions", () => {
       
       // Should only receive one close event
       expect(closeEventCount).toBe(1);
-      expect(simulatedWs.readyState).toBe(CLOSED);
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
       
       // Additional close calls should be no-ops
       simulatedWs.close(1003, "Close after closed - should be ignored");
@@ -145,8 +144,6 @@ describe("Invalid State Transitions", () => {
   });
 
   it("should throw when calling send() on closed WebSocket", async () => {
-    const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
-    const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
     
     const proxyPort = await getPort();
     const backendPort = await getPort();
@@ -177,7 +174,7 @@ describe("Invalid State Transitions", () => {
         });
       });
       
-      expect(simulatedWs.readyState).toBe(CLOSED);
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
       
       // Trying to send should throw an error
       expect(() => {
@@ -190,9 +187,7 @@ describe("Invalid State Transitions", () => {
     }
   });
 
-  it("should cause proxy to clean up connection when client closes during CONNECTING", async () => {
-    const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
-    const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
+  it("should cause proxy to clean up connection when client closes during WebSocket.CONNECTING", async () => {
     
     const proxyPort = await getPort();
     const backendPort = await getPort();
@@ -209,10 +204,10 @@ describe("Invalid State Transitions", () => {
     try {
       const backendUrl = `ws://localhost:${backendPort}`;
       
-      // Start connection but close immediately (during CONNECTING state)
+      // Start connection but close immediately (during WebSocket.CONNECTING state)
       simulatedWs = new SimulatedWebsocket(backendUrl, undefined, `http://localhost:${proxyPort}`);
       
-      expect(simulatedWs.readyState).toBe(CONNECTING);
+      expect(simulatedWs.readyState).toBe(WebSocket.CONNECTING);
       
       // Close immediately while still connecting
       const closePromise = new Promise<void>((resolve) => {
@@ -222,10 +217,10 @@ describe("Invalid State Transitions", () => {
       });
       
       simulatedWs.close(1000, "Abort connection");
-      expect(simulatedWs.readyState).toBe(CLOSED);
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
       
       await closePromise;
-      expect(simulatedWs.readyState).toBe(CLOSED);
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
       
       // Give the proxy time to clean up
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -247,8 +242,6 @@ describe("Invalid State Transitions", () => {
   });
 
   it("should properly handle race condition between open and close", async () => {
-    const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
-    const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
     
     const proxyPort = await getPort();
     const backendPort = await getPort();
@@ -266,14 +259,13 @@ describe("Invalid State Transitions", () => {
       const backendUrl = `ws://localhost:${backendPort}`;
       
       // Track all events
-      let openEventReceived = false;
       let closeEventReceived = false;
       let closeEvent: any = null;
       
       simulatedWs = new SimulatedWebsocket(backendUrl, undefined, `http://localhost:${proxyPort}`);
       
       simulatedWs.addEventListener("open", () => {
-        openEventReceived = true;
+        // Open event may or may not fire depending on timing
       });
       
       simulatedWs.addEventListener("close", (event: any) => {
@@ -288,7 +280,7 @@ describe("Invalid State Transitions", () => {
       // Wait for final state
       await new Promise<void>((resolve) => {
         const checkClosed = () => {
-          if (simulatedWs.readyState === CLOSED) {
+          if (simulatedWs.readyState === WebSocket.CLOSED) {
             resolve();
           } else {
             setTimeout(checkClosed, 10);
@@ -298,7 +290,7 @@ describe("Invalid State Transitions", () => {
       });
       
       // Should always end up closed
-      expect(simulatedWs.readyState).toBe(CLOSED);
+      expect(simulatedWs.readyState).toBe(WebSocket.CLOSED);
       expect(closeEventReceived).toBe(true);
       expect(closeEvent).toBeDefined();
       
@@ -320,8 +312,6 @@ describe("Invalid State Transitions", () => {
   });
 
   it("should throw InvalidAccessError when calling close(1001)", async () => {
-    const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
-    const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
     
     const proxyPort = await getPort();
     const backendPort = await getPort();
@@ -347,7 +337,7 @@ describe("Invalid State Transitions", () => {
         });
       });
       
-      expect(simulatedWs.readyState).toBe(OPEN);
+      expect(simulatedWs.readyState).toBe(WebSocket.OPEN);
       
       // Should throw InvalidAccessError when trying to close with 1001
       // This matches native Node.js WebSocket behavior

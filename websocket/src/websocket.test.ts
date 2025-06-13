@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SimulatedWebsocket, CONNECTING, OPEN, CLOSING, CLOSED } from "./node.js";
+import { SimulatedWebsocket } from "./node.js";
 
 describe("SimulatedWebsocket Basic Tests", () => {
   it("should create a SimulatedWebsocket instance", () => {
@@ -7,7 +7,7 @@ describe("SimulatedWebsocket Basic Tests", () => {
 
     expect(ws).toBeDefined();
     expect(ws.url).toBe("ws://localhost:8123");
-    expect(ws.readyState).toBe(CONNECTING);
+    expect(ws.readyState).toBe(WebSocket.CONNECTING);
     expect(ws.protocol).toBe("");
     expect(ws.extensions).toBe("");
 
@@ -15,11 +15,11 @@ describe("SimulatedWebsocket Basic Tests", () => {
     ws.close();
   });
 
-  it("should have WebSocket constants exported", () => {
-    expect(CONNECTING).toBe(0);
-    expect(OPEN).toBe(1);
-    expect(CLOSING).toBe(2);
-    expect(CLOSED).toBe(3);
+  it("should have WebSocket constants available via WebSocket", () => {
+    expect(WebSocket.CONNECTING).toBe(0);
+    expect(WebSocket.OPEN).toBe(1);
+    expect(WebSocket.CLOSING).toBe(2);
+    expect(WebSocket.CLOSED).toBe(3);
   });
 
   it("should extend EventTarget", () => {

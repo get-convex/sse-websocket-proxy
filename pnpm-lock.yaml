@@ -24,10 +24,10 @@ importers:
         specifier: ^7.1.0
         version: 7.1.0
       sse-proxied-websocket:
-        specifier: link:../websocket
+        specifier: workspace:sse-proxied-websocket
         version: link:../websocket
       sse-websocket-proxy:
-        specifier: link:../proxy
+        specifier: workspace:sse-ws-proxy
         version: link:../proxy
       tsdown:
         specifier: ^0.12.7
@@ -93,7 +93,7 @@ importers:
         specifier: ^7.1.0
         version: 7.1.0
       sse-websocket-proxy:
-        specifier: link:../proxy
+        specifier: workspace:sse-ws-proxy
         version: link:../proxy
       tsdown:
         specifier: ^0.12.7

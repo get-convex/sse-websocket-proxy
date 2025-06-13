@@ -16,7 +16,7 @@
     "@types/node": "^22.15.30",
     "@types/ws": "^8.18.1",
     "get-port": "^7.1.0",
-    "sse-websocket-proxy": "link:../proxy",
+    "sse-websocket-proxy": "workspace:sse-ws-proxy",
     "tsdown": "^0.12.7",
     "tsx": "^4.7.1",
     "typescript": "5.8.2",

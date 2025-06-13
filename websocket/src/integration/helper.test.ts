@@ -6,7 +6,7 @@ describe("Integration Test Helper", () => {
     await withWebsocketConnection(async ({ webSocket, connection, testBackend }) => {
       // WebSocket is already connected when passed to callback
       expect(testBackend.hasConnection()).toBe(true);
-      expect(webSocket.readyState).toBe(1); // OPEN
+      expect(webSocket.readyState).toBe(WebSocket.OPEN);
 
       // Set up close event listener on the simulated websocket
       const closePromise = new Promise<{ code: number; reason: string }>((resolve) => {
