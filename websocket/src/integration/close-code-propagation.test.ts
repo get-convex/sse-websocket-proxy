@@ -70,7 +70,7 @@ describe("Close Code Propagation", () => {
           if (webSocket.readyState === 1) {
             resolve();
           } else {
-            webSocket.addEventListener("open", resolve);
+            webSocket.addEventListener("open", () => resolve());
           }
         });
 
@@ -158,7 +158,7 @@ describe("Close Code Propagation", () => {
           if (webSocket.readyState === 1) {
             resolve();
           } else {
-            webSocket.addEventListener("open", resolve);
+            webSocket.addEventListener("open", () => resolve());
           }
         });
 
@@ -199,7 +199,7 @@ describe("Close Code Propagation", () => {
           if (webSocket.readyState === 1) {
             resolve();
           } else {
-            webSocket.addEventListener("open", resolve);
+            webSocket.addEventListener("open", () => resolve());
           }
         });
 

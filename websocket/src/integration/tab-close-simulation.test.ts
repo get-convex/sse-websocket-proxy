@@ -12,7 +12,7 @@ describe('Tab Close Simulation', () => {
         if (webSocket.readyState === 1) {
           resolve();
         } else {
-          webSocket.addEventListener("open", resolve);
+          webSocket.addEventListener("open", () => resolve());
         }
       });
 
@@ -59,7 +59,7 @@ describe('Tab Close Simulation', () => {
         if (webSocket.readyState === 1) {
           resolve();
         } else {
-          webSocket.addEventListener("open", resolve);
+          webSocket.addEventListener("open", () => resolve());
         }
       });
 
