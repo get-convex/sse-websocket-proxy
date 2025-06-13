@@ -40,10 +40,31 @@ export async function withWebsocketConnection<T>(
   );
 
   try {
-    // Wait for the backend to receive the WebSocket connection
+    // Wait for the WebSocket to be fully connected on both ends
+    await Promise.all([
+      // Wait for backend to receive the connection
+      backendConnectionPromise,
+      // Wait for WebSocket to be open
+      new Promise<void>((resolve, reject) => {
+        if (webSocket.readyState === 1) { // OPEN
+          resolve();
+        } else {
+          const timeout = setTimeout(() => reject(new Error('WebSocket connection timeout')), 5000);
+          webSocket.addEventListener("open", () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+          webSocket.addEventListener("error", (error: any) => {
+            clearTimeout(timeout);
+            reject(new Error(`WebSocket connection error: ${error.message || 'Unknown error'}`));
+          });
+        }
+      })
+    ]);
+
     const connection = await backendConnectionPromise;
 
-    // Execute the test callback
+    // Execute the test callback with fully connected WebSocket
     const result = await callback({ webSocket, connection, proxy, testBackend });
 
     return result;

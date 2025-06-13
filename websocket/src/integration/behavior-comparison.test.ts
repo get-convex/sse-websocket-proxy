@@ -3,106 +3,122 @@ import { createProxiedWebSocketClass } from "../node.js";
 import getPort from "get-port";
 
 /**
- * Helper function to run the same test logic against both native and simulated WebSockets
+ * Run the same test logic against both native and simulated WebSockets
  */
-async function runBehaviorComparison<T>(
+async function runBehaviorComparison(
   testName: string,
-  testLogic: (WebSocketClass: any, backendUrl: string, isSimulated: boolean) => Promise<T>,
-): Promise<{ native: T; simulated: T }> {
+  testLogic: (
+    WebSocketClass: any, 
+    backendUrl: string, 
+    isSimulated: boolean, 
+    clientConnection: Promise<any>
+  ) => Promise<void>,
+): Promise<{ 
+  nativeBackend: any; 
+  simulatedBackend: any; 
+}> {
   const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
   const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
 
+  // Always run native WebSocket first to establish the expected behavior
+  
+  const nativeBackendPort = await getPort();
+  const nativeBackend = await WSTestBackend.create({ port: nativeBackendPort });
+  
+  const NativeWebSocketClass = createProxiedWebSocketClass(false);
+  const nativeBackendUrl = `ws://localhost:${nativeBackendPort}`;
+  
+  // Get the connection promise for the native backend
+  const nativeConnectionPromise = nativeBackend.wsConnection();
+  
+  await testLogic(NativeWebSocketClass, nativeBackendUrl, false, nativeConnectionPromise);
+  
+  // Run test with simulated WebSocket using separate backend
+  
+  const simulatedBackendPort = await getPort();
   const proxyPort = await getPort();
-  const backendPort = await getPort();
-
-  // Start backend and proxy
-  const testBackend = await WSTestBackend.create({ port: backendPort });
+  
+  const simulatedBackend = await WSTestBackend.create({ port: simulatedBackendPort });
   const proxy = new SSEWebSocketProxy({
     port: proxyPort,
-    backendUrl: `http://localhost:${backendPort}`,
+    backendUrl: `http://localhost:${simulatedBackendPort}`,
   });
   await proxy.start();
-
+  
   try {
-    // Create WebSocket classes
-    const NativeWebSocketClass = createProxiedWebSocketClass(false);
     const SimulatedWebSocketClass = createProxiedWebSocketClass(
       true,
       `http://localhost:${proxyPort}`,
     );
+    const simulatedBackendUrl = `ws://localhost:${simulatedBackendPort}`;
+    
+    // Get the connection promise for the simulated backend
+    const simulatedConnectionPromise = simulatedBackend.wsConnection();
+    
+    await testLogic(SimulatedWebSocketClass, simulatedBackendUrl, true, simulatedConnectionPromise);
 
-    const backendUrl = `ws://localhost:${backendPort}`;
-
-    console.log(`\n=== Running behavior comparison: ${testName} ===`);
-
-    // Run test with native WebSocket
-    console.log("Testing with native WebSocket...");
-    const nativeResult = await testLogic(NativeWebSocketClass, backendUrl, false);
-
-    // Run test with simulated WebSocket
-    console.log("Testing with SimulatedWebSocket...");
-    const simulatedResult = await testLogic(SimulatedWebSocketClass, backendUrl, true);
-
-    console.log("=== Behavior comparison complete ===\n");
-
-    return { native: nativeResult, simulated: simulatedResult };
+    return { 
+      nativeBackend,
+      simulatedBackend 
+    };
   } finally {
     await proxy.stop();
-    await testBackend.stop();
+    await simulatedBackend.stop();
+    await nativeBackend.stop();
   }
 }
 
 describe("WebSocket Behavior Comparison", () => {
-  it("should throw identical errors for close(1001) between native and simulated WebSocket", async () => {
-    const results = await runBehaviorComparison(
-      "close(1001) validation",
-      async (WebSocketClass, backendUrl, isSimulated) => {
-        // We don't actually need to connect to test close code validation
-        // since the error should be thrown immediately in the close() method
-        return new Promise<{ errorType: string; errorMessage: string } | null>((resolve) => {
-          try {
-            const ws = new WebSocketClass(backendUrl);
-
-            // Try to close with 1001 immediately - this should throw
-            try {
-              ws.close(1001, "Page unloading");
-              resolve(null); // No error thrown
-            } catch (error: any) {
-              resolve({
-                errorType: error.constructor.name,
-                errorMessage: error.message,
-              });
-            }
-          } catch (constructorError: any) {
-            resolve({
-              errorType: constructorError.constructor.name,
-              errorMessage: constructorError.message,
-            });
-          }
+  it("should connect, send message, receive it on backend, then throw identical errors for close(1001)", async () => {
+    await runBehaviorComparison(
+      "connect → send → close(1001) validation",
+      async (WebSocketClass, backendUrl, isSimulated, clientConnection) => {
+        const ws = new WebSocketClass(backendUrl);
+        
+        // Wait for connection to open
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
+          
+          ws.onopen = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          
+          ws.onerror = (error: any) => {
+            clearTimeout(timeout);
+            reject(new Error(`WebSocket error: ${error.message || 'Unknown error'}`));
+          };
         });
+
+        // Get the backend connection and send a test message
+        const backendConn = await clientConnection;
+        const testMessage = `Hello from ${isSimulated ? 'simulated' : 'native'} WebSocket!`;
+        ws.send(testMessage);
+
+        // Verify the message is received on the backend
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Message receive timeout')), 5000);
+          
+          backendConn.onMessage((receivedData: string) => {
+            clearTimeout(timeout);
+            expect(receivedData).toBe(testMessage);
+            resolve();
+          });
+        });
+
+        // Test close(1001) - this should throw immediately
+        let thrownError: any = null;
+        try {
+          ws.close(1001, "Page unloading");
+        } catch (error: any) {
+          thrownError = error;
+        }
+
+        // Verify that an error was thrown
+        expect(thrownError).not.toBeNull();
+        expect(thrownError.constructor.name).toBe('DOMException');
+        expect(thrownError.message.toLowerCase()).toMatch(/(invalid|code)/);
       },
-    );
-
-    // Both should throw errors
-    expect(results.native).not.toBeNull();
-    expect(results.simulated).not.toBeNull();
-
-    // Error types should match
-    expect(results.simulated!.errorType).toBe(results.native!.errorType);
-
-    // Error messages should both indicate it's not a valid close code
-    const nativeMsg = results.native!.errorMessage.toLowerCase();
-    const simulatedMsg = results.simulated!.errorMessage.toLowerCase();
-
-    // Both should indicate it's not a valid close code (but messages may vary)
-    expect(nativeMsg).toMatch(/(invalid|neither|must be|code)/);
-    expect(simulatedMsg).toMatch(/(invalid|neither|must be|code)/);
-
-    console.log(
-      `Native WebSocket error: ${results.native!.errorType}: ${results.native!.errorMessage}`,
-    );
-    console.log(
-      `Simulated WebSocket error: ${results.simulated!.errorType}: ${results.simulated!.errorMessage}`,
     );
   });
 
@@ -118,48 +134,24 @@ describe("WebSocket Behavior Comparison", () => {
     ];
 
     for (const testCase of invalidCodes) {
-      const results = await runBehaviorComparison(
+      await runBehaviorComparison(
         `close(${testCase.code}) validation`,
-        async (WebSocketClass, backendUrl, isSimulated) => {
-          return new Promise<{ errorType: string; errorMessage: string } | null>((resolve) => {
-            try {
-              const ws = new WebSocketClass(backendUrl);
+        async (WebSocketClass, backendUrl, isSimulated, clientConnection) => {
+          const ws = new WebSocketClass(backendUrl);
 
-              try {
-                ws.close(testCase.code, testCase.reason);
-                resolve(null); // No error thrown
-              } catch (error: any) {
-                resolve({
-                  errorType: error.constructor.name,
-                  errorMessage: error.message,
-                });
-              }
-            } catch (constructorError: any) {
-              resolve({
-                errorType: constructorError.constructor.name,
-                errorMessage: constructorError.message,
-              });
-            }
-          });
+          let thrownError: any = null;
+          try {
+            ws.close(testCase.code, testCase.reason);
+          } catch (error: any) {
+            thrownError = error;
+          }
+
+          // Both implementations should throw the same type of error for invalid codes
+          expect(thrownError).not.toBeNull();
+          expect(thrownError.constructor.name).toBe('DOMException');
+          expect(thrownError.message.toLowerCase()).toMatch(/(invalid|code)/);
         },
       );
-
-      // Check if behaviors match
-      if (results.native === null && results.simulated === null) {
-        // Both allow this code - that's fine
-        console.log(`Code ${testCase.code}: Both implementations allow this code`);
-      } else if (results.native !== null && results.simulated !== null) {
-        // Both throw errors - error types should match
-        expect(results.simulated.errorType).toBe(results.native.errorType);
-        console.log(`Code ${testCase.code}: Both throw ${results.native.errorType}`);
-      } else {
-        // One throws, one doesn't - this is a mismatch
-        throw new Error(
-          `Behavior mismatch for close code ${testCase.code}: ` +
-            `Native: ${results.native ? `${results.native.errorType}: ${results.native.errorMessage}` : "No error"}, ` +
-            `Simulated: ${results.simulated ? `${results.simulated.errorType}: ${results.simulated.errorMessage}` : "No error"}`,
-        );
-      }
     }
   });
 
@@ -172,38 +164,22 @@ describe("WebSocket Behavior Comparison", () => {
     ];
 
     for (const testCase of validCodes) {
-      const results = await runBehaviorComparison(
+      await runBehaviorComparison(
         `close(${testCase.code}) validation`,
-        async (WebSocketClass, backendUrl, isSimulated) => {
-          return new Promise<{ errorType: string; errorMessage: string } | null>((resolve) => {
-            try {
-              const ws = new WebSocketClass(backendUrl);
+        async (WebSocketClass, backendUrl, isSimulated, clientConnection) => {
+          const ws = new WebSocketClass(backendUrl);
 
-              try {
-                ws.close(testCase.code, testCase.reason);
-                resolve(null); // No error thrown - this is expected
-              } catch (error: any) {
-                resolve({
-                  errorType: error.constructor.name,
-                  errorMessage: error.message,
-                });
-              }
-            } catch (constructorError: any) {
-              resolve({
-                errorType: constructorError.constructor.name,
-                errorMessage: constructorError.message,
-              });
-            }
-          });
+          let thrownError: any = null;
+          try {
+            ws.close(testCase.code, testCase.reason);
+          } catch (error: any) {
+            thrownError = error;
+          }
+
+          // Both implementations should allow valid codes without throwing
+          expect(thrownError).toBeNull();
         },
       );
-
-      // Both should allow valid codes without throwing
-      expect(results.native).toBeNull();
-      expect(results.simulated).toBeNull();
-
-      console.log(`Code ${testCase.code}: Both implementations allow this valid code`);
     }
   });
 });
-

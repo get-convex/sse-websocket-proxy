@@ -180,20 +180,43 @@ export class SSEWebSocketProxy {
   }
 
   private handleMessageSend(req: IncomingMessage, res: ServerResponse): void {
-    this.handleRequestWithSession(
-      req,
-      res,
-      { requireOpenWebSocket: true },
-      (client, message: any) => {
-        client.websocket.send(JSON.stringify(message))
-        client.lastActivity = Date.now()
+    const sessionId = req.headers['x-session-id'] as string
 
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ success: true }))
+    if (!sessionId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Missing X-Session-Id header' }))
+      return
+    }
 
-        console.log(`Sent message for session ${client.sessionId}:`, message.type)
-      }
-    )
+    const client = this.clients.get(sessionId)
+    if (!client) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Session not found' }))
+      return
+    }
+
+    if (client.websocket.readyState !== WebSocket.OPEN) {
+      res.writeHead(503, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'WebSocket not connected' }))
+      return
+    }
+
+    // Read the raw request body (don't parse as JSON)
+    let body = ''
+    req.on('data', (chunk) => {
+      body += chunk.toString()
+    })
+
+    req.on('end', () => {
+      // Send the raw message data to the WebSocket backend
+      client.websocket.send(body)
+      client.lastActivity = Date.now()
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: true }))
+
+      console.log(`Sent raw message for session ${client.sessionId}`)
+    })
   }
 
   private handleCloseRequest(req: IncomingMessage, res: ServerResponse): void {
@@ -291,21 +314,17 @@ export class SSEWebSocketProxy {
     })
 
     websocket.on('message', (data) => {
-      try {
-        const message = JSON.parse(data.toString())
-        client.lastActivity = Date.now()
+      client.lastActivity = Date.now()
 
-        // Forward WebSocket message to SSE client
-        this.sendSSEMessage(sseResponse, {
-          type: 'message',
-          data: message,
-          timestamp: Date.now(),
-        })
+      // Forward WebSocket message to SSE client with raw data
+      // Don't attempt to parse it - just pass it through as-is
+      this.sendSSEMessage(sseResponse, {
+        type: 'message',
+        data: data.toString(), // Raw WebSocket data as string
+        timestamp: Date.now(),
+      })
 
-        console.log(`Forwarded message to SSE client ${sessionId}:`, message.type)
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error)
-      }
+      console.log(`Forwarded message to SSE client ${sessionId}`)
     })
 
     websocket.on('error', (error) => {

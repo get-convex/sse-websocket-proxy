@@ -4,24 +4,16 @@ import { withWebsocketConnection } from "../integration-test-helper.js";
 describe("Messages Integration Test", () => {
   it("should send messages in both directions and close cleanly", async () => {
     await withWebsocketConnection(async ({ webSocket, connection, testBackend }) => {
+      // WebSocket is already connected when passed to this callback
       expect(testBackend.hasConnection()).toBe(true);
-
-      // Wait for the WebSocket to be fully open
-      await new Promise<void>((resolve) => {
-        if (webSocket.readyState === 1) { // OPEN
-          resolve();
-        } else {
-          webSocket.addEventListener("open", () => {
-            resolve();
-          });
-        }
-      });
+      expect(webSocket.readyState).toBe(1); // OPEN
 
       // 1. Send message from client to server
       const messageFromClient = JSON.stringify({ type: "greeting", text: "Hello from client" });
       
       const serverReceivedPromise = new Promise<any>((resolve) => {
         connection.onMessage((data) => {
+          // Note: Server receives raw string data, needs to parse if it wants JSON
           resolve(JSON.parse(data));
         });
       });
@@ -34,7 +26,7 @@ describe("Messages Integration Test", () => {
       // 2. Send message from server to client
       const messageFromServer = JSON.stringify({ type: "response", text: "Hello from server" });
 
-      const clientReceivedPromise = new Promise<any>((resolve) => {
+      const clientReceivedPromise = new Promise<string>((resolve) => {
         webSocket.addEventListener("message", (event: any) => {
           resolve(event.data);
         });
@@ -42,8 +34,15 @@ describe("Messages Integration Test", () => {
 
       connection.send(messageFromServer);
       const receivedByClient = await clientReceivedPromise;
-      expect(receivedByClient.type).toBe("response");
-      expect(receivedByClient.text).toBe("Hello from server");
+      
+      // Fix: WebSocket receives raw string data, not parsed objects
+      // This matches native WebSocket behavior - applications must parse JSON themselves
+      expect(receivedByClient).toBe(messageFromServer);
+      
+      // If the application wants to parse JSON, it should do so explicitly:
+      const parsedMessage = JSON.parse(receivedByClient);
+      expect(parsedMessage.type).toBe("response");
+      expect(parsedMessage.text).toBe("Hello from server");
 
       // 3. Client closes the connection
       const closePromise = new Promise<{ code: number; reason: string }>((resolve) => {

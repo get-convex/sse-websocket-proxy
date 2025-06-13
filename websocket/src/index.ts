@@ -223,28 +223,25 @@ export class SimulatedWebsocket extends EventTarget {
       throw new Error("No session ID available");
     }
 
-    // Convert data to string if needed
-    let message: any;
+    // Send the data exactly as provided, like a real WebSocket
+    let messageToSend: string;
     if (typeof data === "string") {
-      try {
-        message = JSON.parse(data);
-      } catch {
-        message = { text: data };
-      }
+      messageToSend = data;
     } else {
-      // For binary data, we'd need to handle it differently
-      // For now, convert to string
-      message = { binary: data.toString() };
+      // For binary data, convert to string representation
+      // TODO: Implement proper binary data support
+      messageToSend = data.toString();
     }
 
     // Send via HTTP POST to the proxy
+    // Send the raw message data directly to the proxy
     fetch(`${this.proxyUrl}/messages`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "text/plain",
         "X-Session-Id": this.sessionId,
       },
-      body: JSON.stringify(message),
+      body: messageToSend,
     }).catch((error) => {
       // Send errors after connection establishment are protocol errors - close with 1006
       this.handleClose(1006, `Failed to send message: ${error.message}`, false);
