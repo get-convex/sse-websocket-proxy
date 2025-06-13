@@ -380,4 +380,248 @@ describe("Proxy Error Handling", () => {
       // Proxy already stopped above
     }
   });
+
+  // SSE Protocol Error Handling Tests
+  describe("SSE Protocol Errors", () => {
+    it("should emit error event when receiving invalid JSON from proxy", async () => {
+      // Set up infrastructure manually so we can send raw messages
+      const backendPort = await getPort();
+      const proxyPort = await getPort();
+
+      const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
+      const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
+
+      const backend = await WSTestBackend.create({ port: backendPort });
+      const proxy = new SSEWebSocketProxy({
+        port: proxyPort,
+        backendUrl: `http://localhost:${backendPort}`,
+      });
+      await proxy.start();
+
+      try {
+        const { createProxiedWebSocketClass } = await import("../node.js");
+        const SimulatedWebSocketClass = createProxiedWebSocketClass(
+          true,
+          `http://localhost:${proxyPort}`,
+        );
+
+        const ws = new SimulatedWebSocketClass(`ws://localhost:${backendPort}`);
+
+        // Wait for connection to be established
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
+          
+          ws.onopen = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          
+          ws.onerror = (error: any) => {
+            clearTimeout(timeout);
+            reject(new Error(`WebSocket error during connection: ${error.message || 'Unknown error'}`));
+          };
+        });
+
+        // Get the session ID to send raw messages
+        const sessionId = ws.getSessionId();
+        expect(sessionId).toBeTruthy();
+
+        // Set up error event listener
+        const errorPromise = new Promise<{error: Error; wasClean: boolean}>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Error event timeout')), 5000);
+          
+          ws.onerror = (errorEvent: any) => {
+            clearTimeout(timeout);
+            resolve({
+              error: errorEvent.error || new Error(errorEvent.message || 'Unknown error'),
+              wasClean: false
+            });
+          };
+
+          // Also listen for close events in case the connection closes
+          ws.onclose = (closeEvent: any) => {
+            clearTimeout(timeout);
+            resolve({
+              error: new Error(`Connection closed: ${closeEvent.reason}`),
+              wasClean: closeEvent.wasClean
+            });
+          };
+        });
+
+        // Send invalid JSON through the raw message interface
+        const invalidJson = "{ this is not valid JSON }";
+        const sent = proxy.sendRawMessageToSession(sessionId!, invalidJson);
+        expect(sent).toBe(true);
+
+        // Should receive an error event
+        const result = await errorPromise;
+        expect(result.error).toBeInstanceOf(Error);
+        expect(result.error.message).toMatch(/malformed data from proxy|Failed to decode SSE message/i);
+
+        // Connection should be closed cleanly (proxy didn't mess up, it's a client-side validation error)
+        expect(result.wasClean).toBe(false); // Error state, not clean close
+
+      } finally {
+        await proxy.stop();
+        await backend.stop();
+      }
+    });
+
+    it("should emit error event when receiving JSON with unexpected schema", async () => {
+      // Set up infrastructure manually
+      const backendPort = await getPort();
+      const proxyPort = await getPort();
+
+      const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
+      const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
+
+      const backend = await WSTestBackend.create({ port: backendPort });
+      const proxy = new SSEWebSocketProxy({
+        port: proxyPort,
+        backendUrl: `http://localhost:${backendPort}`,
+      });
+      await proxy.start();
+
+      try {
+        const { createProxiedWebSocketClass } = await import("../node.js");
+        const SimulatedWebSocketClass = createProxiedWebSocketClass(
+          true,
+          `http://localhost:${proxyPort}`,
+        );
+
+        const ws = new SimulatedWebSocketClass(`ws://localhost:${backendPort}`);
+
+        // Wait for connection
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
+          
+          ws.onopen = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          
+          ws.onerror = (error: any) => {
+            clearTimeout(timeout);
+            reject(new Error(`WebSocket error during connection: ${error.message || 'Unknown error'}`));
+          };
+        });
+
+        const sessionId = ws.getSessionId();
+        expect(sessionId).toBeTruthy();
+
+        // Set up error event listener
+        const errorPromise = new Promise<{error: Error; wasClean: boolean}>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Error event timeout')), 5000);
+          
+          ws.onerror = (errorEvent: any) => {
+            clearTimeout(timeout);
+            resolve({
+              error: errorEvent.error || new Error(errorEvent.message || 'Unknown error'),
+              wasClean: false
+            });
+          };
+
+          ws.onclose = (closeEvent: any) => {
+            clearTimeout(timeout);
+            resolve({
+              error: new Error(`Connection closed: ${closeEvent.reason}`),
+              wasClean: closeEvent.wasClean
+            });
+          };
+        });
+
+        // Send valid JSON but with unexpected schema
+        const unexpectedMessage = JSON.stringify({
+          unknownType: "unexpected",
+          randomField: 42,
+          data: "this doesn't match our SSE protocol"
+        });
+        
+        const sent = proxy.sendRawMessageToSession(sessionId!, unexpectedMessage);
+        expect(sent).toBe(true);
+
+        // Should receive an error event
+        const result = await errorPromise;
+        expect(result.error).toBeInstanceOf(Error);
+        expect(result.error.message).toMatch(/malformed data from proxy|Failed to decode SSE message|Invalid SSE message format/i);
+
+      } finally {
+        await proxy.stop();
+        await backend.stop();
+      }
+    });
+
+    it("should emit error event when receiving empty or null messages", async () => {
+      const backendPort = await getPort();
+      const proxyPort = await getPort();
+
+      const { SSEWebSocketProxy } = await import("sse-websocket-proxy");
+      const { WSTestBackend } = await import("sse-websocket-proxy/ws-test-backend");
+
+      const backend = await WSTestBackend.create({ port: backendPort });
+      const proxy = new SSEWebSocketProxy({
+        port: proxyPort,
+        backendUrl: `http://localhost:${backendPort}`,
+      });
+      await proxy.start();
+
+      try {
+        const { createProxiedWebSocketClass } = await import("../node.js");
+        const SimulatedWebSocketClass = createProxiedWebSocketClass(
+          true,
+          `http://localhost:${proxyPort}`,
+        );
+
+        const ws = new SimulatedWebSocketClass(`ws://localhost:${backendPort}`);
+
+        // Wait for connection
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
+          
+          ws.onopen = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          
+          ws.onerror = (error: any) => {
+            clearTimeout(timeout);
+            reject(new Error(`WebSocket error during connection: ${error.message || 'Unknown error'}`));
+          };
+        });
+
+        const sessionId = ws.getSessionId();
+        expect(sessionId).toBeTruthy();
+
+        // Test empty string
+        const errorPromise1 = new Promise<{error: Error}>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Error event timeout')), 5000);
+          
+          ws.onerror = (errorEvent: any) => {
+            clearTimeout(timeout);
+            resolve({
+              error: errorEvent.error || new Error(errorEvent.message || 'Unknown error')
+            });
+          };
+
+          ws.onclose = (closeEvent: any) => {
+            clearTimeout(timeout);
+            resolve({
+              error: new Error(`Connection closed: ${closeEvent.reason}`)
+            });
+          };
+        });
+
+        const sent1 = proxy.sendRawMessageToSession(sessionId!, "");
+        expect(sent1).toBe(true);
+
+        const result1 = await errorPromise1;
+        expect(result1.error).toBeInstanceOf(Error);
+        expect(result1.error.message).toMatch(/malformed data from proxy|Failed to decode SSE message/i);
+
+      } finally {
+        await proxy.stop();
+        await backend.stop();
+      }
+    });
+  });
 });

@@ -1,3 +1,5 @@
+import { decodeSSEMessage, type SSEMessage } from 'sse-websocket-proxy/sse-protocol';
+
 // WebSocket states
 export const CONNECTING = 0;
 export const OPEN = 1;
@@ -104,10 +106,12 @@ export class SimulatedWebsocket extends EventTarget {
 
     this.eventSource.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        this.handleProxyMessage(data);
+        const message = decodeSSEMessage(event.data);
+        this.handleProxyMessage(message);
       } catch (error) {
-        console.error("SimulatedWebsocket: Failed to parse proxy message:", error);
+        console.error("SimulatedWebsocket: Failed to decode SSE message:", error);
+        // Malformed data from proxy should trigger an error event
+        this.handleError(new Error(`Malformed data from proxy: ${error instanceof Error ? error.message : 'Unknown decoding error'}`));
       }
     };
 
@@ -129,10 +133,10 @@ export class SimulatedWebsocket extends EventTarget {
     };
   }
 
-  private handleProxyMessage(data: any): void {
-    switch (data.type) {
+  private handleProxyMessage(message: SSEMessage): void {
+    switch (message.type) {
       case "connected":
-        this.sessionId = data.sessionId;
+        this.sessionId = message.sessionId;
         break;
 
       case "websocket-connected":
@@ -145,19 +149,19 @@ export class SimulatedWebsocket extends EventTarget {
 
       case "message":
         const messageEvent = new CustomEvent("message", {
-          detail: { data: data.data },
+          detail: { data: message.data },
         }) as WebSocketMessageEvent;
-        messageEvent.data = data.data;
+        messageEvent.data = message.data;
         this.dispatchEvent(messageEvent);
         if (this.onmessage) this.onmessage(messageEvent);
         break;
 
       case "websocket-error":
-        this.handleError(new Error(data.error));
+        this.handleError(new Error(message.error));
         break;
 
       case "websocket-closed":
-        this.handleClose(data.code, data.reason, data.wasClean ?? true);
+        this.handleClose(message.code, message.reason, message.wasClean);
         break;
 
       case "ping":
@@ -165,7 +169,7 @@ export class SimulatedWebsocket extends EventTarget {
         break;
 
       default:
-        console.warn("Unknown proxy message type:", data.type);
+        console.warn("Unknown proxy message type:", (message as any).type);
     }
   }
 
@@ -246,6 +250,11 @@ export class SimulatedWebsocket extends EventTarget {
       // Send errors after connection establishment are protocol errors - close with 1006
       this.handleClose(1006, `Failed to send message: ${error.message}`, false);
     });
+  }
+
+  // Test utility to get the session ID
+  public getSessionId(): string | null {
+    return this.sessionId;
   }
 
   public close(code?: number, reason?: string): void {

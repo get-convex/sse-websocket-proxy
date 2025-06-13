@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withWebsocketConnection } from '../integration-test-helper.js';
+import { withWebsocketConnection } from './connection-helper.js';
 
 describe('Tab Close Simulation', () => {
 

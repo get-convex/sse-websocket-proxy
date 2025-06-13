@@ -12,6 +12,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./sse-protocol": {
+      "sse-ws-proxy-development": "./src/sse-protocol.ts",
+      "import": "./dist/sse-protocol.js",
+      "require": "./dist/sse-protocol.cjs"
+    },
     "./ws-test-backend": {
       "sse-ws-proxy-development": "./src/ws-test-backend.ts",
       "import": "./dist/ws-test-backend.js",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { withWebsocketConnection } from "../integration-test-helper.js";
+import { withWebsocketConnection } from "./connection-helper.js";
 
 describe("Integration Test Helper", () => {
   it("should work with the helper function", async () => {

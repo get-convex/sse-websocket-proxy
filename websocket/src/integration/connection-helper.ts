@@ -1,6 +1,6 @@
 import { SSEWebSocketProxy } from "sse-websocket-proxy";
 import { WSTestBackend, type WSConnection } from "sse-websocket-proxy/ws-test-backend";
-import { SimulatedWebsocket } from "./node.js";
+import { SimulatedWebsocket } from "../node.js";
 import getPort from "get-port";
 
 // Helper function for WebSocket integration tests

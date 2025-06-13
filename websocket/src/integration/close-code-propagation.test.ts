@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { withWebsocketConnection } from "../integration-test-helper.js";
+import { withWebsocketConnection } from "./connection-helper.js";
 
 describe("Close Code Propagation", () => {
   it("should propagate close codes from client to backend", async () => {

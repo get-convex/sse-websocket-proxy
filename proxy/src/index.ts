@@ -1,5 +1,13 @@
 import WebSocket from 'ws'
 import { IncomingMessage, ServerResponse, Server, createServer } from 'http'
+import {
+  encodeConnectedMessage,
+  encodePingMessage,
+  encodeWebSocketConnectedMessage,
+  encodeDataMessage,
+  encodeWebSocketErrorMessage,
+  encodeWebSocketClosedMessage
+} from './sse-protocol.js'
 
 export interface ProxyConfig {
   backendUrl: string
@@ -100,7 +108,7 @@ export class SSEWebSocketProxy {
     })
 
     // Send initial connection event
-    this.sendSSEMessage(res, { type: 'connected', sessionId })
+    this.sendSSEMessage(res, encodeConnectedMessage(sessionId))
 
     // Create WebSocket connection to backend, preserving the original path structure
     const wsUrl = this.buildWebSocketUrl(this.config.backendUrl, req.url!)
@@ -122,7 +130,7 @@ export class SSEWebSocketProxy {
     // Send keepalive pings
     const keepaliveInterval = setInterval(() => {
       if (!res.destroyed) {
-        this.sendSSEMessage(res, { type: 'ping', timestamp: Date.now() })
+        this.sendSSEMessage(res, encodePingMessage(Date.now()))
         client.lastActivity = Date.now()
       } else {
         clearInterval(keepaliveInterval)
@@ -306,11 +314,7 @@ export class SSEWebSocketProxy {
 
     websocket.on('open', () => {
       console.log(`WebSocket connected for session: ${sessionId}`)
-      this.sendSSEMessage(sseResponse, {
-        type: 'websocket-connected',
-        sessionId,
-        timestamp: Date.now(),
-      })
+      this.sendSSEMessage(sseResponse, encodeWebSocketConnectedMessage(sessionId, Date.now()))
     })
 
     websocket.on('message', (data) => {
@@ -318,22 +322,14 @@ export class SSEWebSocketProxy {
 
       // Forward WebSocket message to SSE client with raw data
       // Don't attempt to parse it - just pass it through as-is
-      this.sendSSEMessage(sseResponse, {
-        type: 'message',
-        data: data.toString(), // Raw WebSocket data as string
-        timestamp: Date.now(),
-      })
+      this.sendSSEMessage(sseResponse, encodeDataMessage(data.toString(), Date.now()))
 
       console.log(`Forwarded message to SSE client ${sessionId}`)
     })
 
     websocket.on('error', (error) => {
       console.error(`WebSocket error for session ${sessionId}:`, error)
-      this.sendSSEMessage(sseResponse, {
-        type: 'websocket-error',
-        error: error.message,
-        timestamp: Date.now(),
-      })
+      this.sendSSEMessage(sseResponse, encodeWebSocketErrorMessage(error.message, Date.now()))
     })
 
     websocket.on('close', (code, reason) => {
@@ -342,13 +338,7 @@ export class SSEWebSocketProxy {
       // Determine if close was clean (normal closure codes)
       const wasClean = code >= 1000 && code <= 1003
 
-      this.sendSSEMessage(sseResponse, {
-        type: 'websocket-closed',
-        code,
-        reason: reason.toString(),
-        wasClean,
-        timestamp: Date.now(),
-      })
+      this.sendSSEMessage(sseResponse, encodeWebSocketClosedMessage(code, reason.toString(), wasClean, Date.now()))
 
       // Clean up the client connection
       this.cleanupClient(sessionId, 'websocket-closed')
@@ -367,10 +357,10 @@ export class SSEWebSocketProxy {
     })
   }
 
-  private sendSSEMessage(res: ServerResponse, data: any): void {
+  private sendSSEMessage(res: ServerResponse, encodedData: string): void {
     if (res.destroyed) return
 
-    const message = `data: ${JSON.stringify(data)}\n\n`
+    const message = `data: ${encodedData}\n\n`
     res.write(message)
   }
 
@@ -495,5 +485,24 @@ export class SSEWebSocketProxy {
         })
       })
     }
+  }
+
+  // Test utilities for sending raw messages to specific sessions
+  sendRawMessageToSession(sessionId: string, rawData: string): boolean {
+    const client = this.clients.get(sessionId)
+    if (!client) {
+      return false
+    }
+    
+    this.sendSSEMessage(client.sseResponse, rawData)
+    return true
+  }
+
+  getActiveSessionIds(): string[] {
+    return Array.from(this.clients.keys())
+  }
+
+  hasSession(sessionId: string): boolean {
+    return this.clients.has(sessionId)
   }
 }
