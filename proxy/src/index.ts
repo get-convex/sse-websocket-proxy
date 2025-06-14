@@ -489,7 +489,7 @@ export class SSEWebSocketProxy {
     }
 
     // Close all client connections
-    for (const [sessionId, client] of this.clients.entries()) {
+    for (const sessionId of this.clients.keys()) {
       this.cleanupClient(sessionId, 'websocket-closed')
     }
 

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  merge_group:
+
+jobs:
+  test:
+    name: Typecheck and Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.8.1"
+          run_install: false
+
+      - name: Set Node.js version to ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "v22.13.0"
+          cache: pnpm
+
+      - name: Install dependencies and build project
+        shell: bash
+        run: |
+          pnpm install
+          pnpm run -r build
+
+      - name: Run type check
+        run: pnpm run -r typecheck
+
+      - name: Test
+        run: pnpm run -r test
+
+      #- name: Run tests
+      #  run: pnpm run test
