@@ -1,5 +1,5 @@
-import { decodeSSEMessage, type SSEMessage } from "sse-websocket-proxy/sse-protocol";
-import { encodeTextMessageRequest } from "sse-websocket-proxy/messages-protocol";
+import { decodeSSEMessage, type SSEMessage } from "@convex-dev/sse-websocket-proxy/sse-protocol";
+import { encodeTextMessageRequest } from "@convex-dev/sse-websocket-proxy/messages-protocol";
 
 let EventSource = globalThis.EventSource;
 export function setEventSource(es: typeof EventSource) {

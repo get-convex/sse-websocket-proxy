@@ -1,5 +1,5 @@
-import { SSEWebSocketProxy } from "sse-websocket-proxy";
-import { WSTestBackend, type WSConnection } from "sse-websocket-proxy/ws-test-backend";
+import { SSEWebSocketProxy } from "@convex-dev/sse-websocket-proxy";
+import { WSTestBackend, type WSConnection } from "@convex-dev/sse-websocket-proxy/ws-test-backend";
 import { SimulatedWebsocket } from "../node.js";
 import getPort from "get-port";
 

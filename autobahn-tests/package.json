@@ -11,8 +11,8 @@
     "@types/node": "^22.15.30",
     "@types/ws": "^8.18.1",
     "get-port": "^7.1.0",
-    "sse-proxied-websocket": "workspace:sse-proxied-websocket",
-    "sse-websocket-proxy": "workspace:sse-ws-proxy",
+    "@convex-dev/sse-proxied-websocket": "workspace:sse-proxied-websocket",
+    "@convex-dev/sse-websocket-proxy": "workspace:sse-ws-proxy",
     "tsdown": "^0.12.7",
     "ws": "^8.18.2"
   },

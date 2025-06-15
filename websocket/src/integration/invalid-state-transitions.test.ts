@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { SimulatedWebsocket } from "../node.js";
 import getPort from "get-port";
-import { SSEWebSocketProxy } from "sse-websocket-proxy";
-import { WSTestBackend } from "sse-websocket-proxy/ws-test-backend";
+import { SSEWebSocketProxy } from "@convex-dev/sse-websocket-proxy";
+import { WSTestBackend } from "@convex-dev/sse-websocket-proxy/ws-test-backend";
 
 describe("Invalid State Transitions", () => {
   let simulatedWs: SimulatedWebsocket;
@@ -93,7 +93,7 @@ describe("Invalid State Transitions", () => {
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
       allowedHosts: [`http://localhost:${backendPort}`],
-    allowAnyLocalhostPort: false,
+      allowAnyLocalhostPort: false,
     });
 
     await proxy.start();
@@ -159,7 +159,7 @@ describe("Invalid State Transitions", () => {
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
       allowedHosts: [`http://localhost:${backendPort}`],
-    allowAnyLocalhostPort: false,
+      allowAnyLocalhostPort: false,
     });
 
     await proxy.start();
@@ -202,7 +202,7 @@ describe("Invalid State Transitions", () => {
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
       allowedHosts: [`http://localhost:${backendPort}`],
-    allowAnyLocalhostPort: false,
+      allowAnyLocalhostPort: false,
     });
 
     await proxy.start();
@@ -255,7 +255,7 @@ describe("Invalid State Transitions", () => {
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
       allowedHosts: [`http://localhost:${backendPort}`],
-    allowAnyLocalhostPort: false,
+      allowAnyLocalhostPort: false,
     });
 
     await proxy.start();
@@ -324,7 +324,7 @@ describe("Invalid State Transitions", () => {
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
       allowedHosts: [`http://localhost:${backendPort}`],
-    allowAnyLocalhostPort: false,
+      allowAnyLocalhostPort: false,
     });
 
     await proxy.start();

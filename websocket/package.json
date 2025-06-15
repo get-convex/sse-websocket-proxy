@@ -1,22 +1,21 @@
 {
-  "name": "sse-proxied-websocket",
-  "version": "1.0.0",
+  "name": "@convex-dev/sse-proxied-websocket",
+  "version": "0.1.0-alpha.0",
   "description": "",
   "type": "module",
+  "author": "Convex, Inc. <no-reply@convex.dev>",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.8.1",
   "scripts": {
     "build": "tsdown",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.8.1",
   "devDependencies": {
     "@types/node": "^22.15.30",
     "@types/ws": "^8.18.1",
     "get-port": "^7.1.0",
-    "sse-websocket-proxy": "workspace:sse-ws-proxy",
+    "@convex-dev/sse-websocket-proxy": "workspace:",
     "tsdown": "^0.12.7",
     "tsx": "^4.7.1",
     "typescript": "5.8.2",
@@ -47,7 +46,6 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@types/eventsource": "^3.0.0",
     "eventsource": "^4.0.0"
   }
 }

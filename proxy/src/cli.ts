@@ -27,11 +27,11 @@ program
     'after',
     `
 Examples:
-  $ sse-websocket-proxy --allow-host https://api.example.com   # Allow only api.example.com
-  $ sse-websocket-proxy --allow-any-localhost-port            # Allow any localhost port
-  $ sse-websocket-proxy --allow-host wss://ws.example.com --allow-host https://api.other.com  # Multiple hosts
-  $ sse-websocket-proxy --allow-any-localhost-port --verbose  # Localhost + verbose logging
-  $ sse-websocket-proxy --dangerously-allow-any-host          # DANGEROUS: Allow any host
+  $ npx @convex-dev/sse-websocket-proxy --allow-host https://api.example.com   # Allow only api.example.com
+  $ npx @convex-dev/sse-websocket-proxy --allow-any-localhost-port            # Allow any localhost port
+  $ npx @convex-dev/sse-websocket-proxy --allow-host wss://ws.example.com --allow-host https://api.other.com  # Multiple hosts
+  $ npx @convex-dev/sse-websocket-proxy --allow-any-localhost-port --verbose  # Localhost + verbose logging
+  $ npx @convex-dev/sse-websocket-proxy --dangerously-allow-any-host          # DANGEROUS: Allow any host
 
 Usage in client:
   The client specifies the backend URL when connecting:
@@ -59,7 +59,9 @@ const options = program.opts()
 async function main() {
   // Validate that at least one allowed destination is specified (unless dangerously allowing any host)
   if (!options.dangerouslyAllowAnyHost && !options.allowAnyLocalhostPort && (!options.allowHost || options.allowHost.length === 0)) {
-    console.error('Error: You must specify at least one allowed host (--allow-host), use --allow-any-localhost-port, or --dangerously-allow-any-host')
+    console.error(
+      'Error: You must specify at least one allowed host (--allow-host), use --allow-any-localhost-port, or --dangerously-allow-any-host',
+    )
     console.error('Run with --help for usage examples')
     process.exit(1)
   }

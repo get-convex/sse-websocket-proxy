@@ -1,13 +1,22 @@
 {
-  "name": "sse-websocket-proxy",
+  "name": "@convex-dev/sse-websocket-proxy",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.1.0-alpha.0",
   "private": true,
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.cts",
-  "bin": {
-    "sse-websocket-proxy": "./dist/cli.js"
+  "bin": "./dist/cli.js",
+  "author": "Convex, Inc. <no-reply@convex.dev>",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.8.1",
+  "scripts": {
+    "build": "tsdown",
+    "start": "node dist/cli.js",
+    "dev": "tsx src/cli.ts",
+    "cli": "node dist/cli.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "exports": {
     ".": {
@@ -36,14 +45,6 @@
       "require": "./dist/ws-test-backend.cjs"
     },
     "./package.json": "./package.json"
-  },
-  "scripts": {
-    "build": "tsdown",
-    "start": "node dist/cli.js",
-    "dev": "tsx src/cli.ts",
-    "cli": "node dist/cli.js",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@types/node": "^22.15.30",

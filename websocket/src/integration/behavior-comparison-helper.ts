@@ -1,7 +1,7 @@
 import { createProxiedWebSocketClass } from "../node.js";
 import getPort from "get-port";
-import { SSEWebSocketProxy } from "sse-websocket-proxy";
-import { WSTestBackend } from "sse-websocket-proxy/ws-test-backend";
+import { SSEWebSocketProxy } from "@convex-dev/sse-websocket-proxy";
+import { WSTestBackend } from "@convex-dev/sse-websocket-proxy/ws-test-backend";
 
 /**
  * Run the same test logic against both native and simulated WebSockets
@@ -45,9 +45,7 @@ export async function withWsAndReference(
   await proxy.start();
 
   try {
-    const SimulatedWebSocketClass = createProxiedWebSocketClass(
-      `http://localhost:${proxyPort}`,
-    );
+    const SimulatedWebSocketClass = createProxiedWebSocketClass(`http://localhost:${proxyPort}`);
     const simulatedBackendUrl = `ws://localhost:${simulatedBackendPort}`;
 
     // Get the connection promise for the simulated backend

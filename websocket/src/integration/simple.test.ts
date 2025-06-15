@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { SSEWebSocketProxy } from "sse-websocket-proxy";
-import { WSTestBackend } from "sse-websocket-proxy/ws-test-backend";
+import { SSEWebSocketProxy } from "@convex-dev/sse-websocket-proxy";
+import { WSTestBackend } from "@convex-dev/sse-websocket-proxy/ws-test-backend";
 import { SimulatedWebsocket } from "../node.js";
 import getPort from "get-port";
 
@@ -28,7 +28,7 @@ describe("Simple Integration Test", () => {
     proxy = new SSEWebSocketProxy({
       port: PROXY_PORT,
       allowedHosts: [`http://localhost:${BACKEND_PORT}`],
-    allowAnyLocalhostPort: false,
+      allowAnyLocalhostPort: false,
     });
     await proxy.start();
     console.log("SSEWebSocketProxy ready");

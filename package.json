@@ -14,9 +14,5 @@
   "packageManager": "pnpm@10.8.1",
   "devDependencies": {
     "prettier": "^3.5.3"
-  },
-  "dependencies": {
-    "sse-proxied-websocket": "link:websocket",
-    "sse-websocket-proxy": "link:proxy"
   }
 }

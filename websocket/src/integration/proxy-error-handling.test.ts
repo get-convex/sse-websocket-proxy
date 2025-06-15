@@ -2,8 +2,8 @@ import { describe, it, expect, afterEach } from "vitest";
 import { SimulatedWebsocket, createProxiedWebSocketClass } from "../node.js";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import getPort from "get-port";
-import { SSEWebSocketProxy } from "sse-websocket-proxy";
-import { WSTestBackend } from "sse-websocket-proxy/ws-test-backend";
+import { SSEWebSocketProxy } from "@convex-dev/sse-websocket-proxy";
+import { WSTestBackend } from "@convex-dev/sse-websocket-proxy/ws-test-backend";
 
 describe("Proxy Error Handling", () => {
   let simulatedWs: SimulatedWebsocket;
@@ -414,7 +414,7 @@ describe("Proxy Error Handling", () => {
         proxy = new SSEWebSocketProxy({
           port: proxyPort,
           allowedHosts: [`http://localhost:${backendPort}`],
-        allowAnyLocalhostPort: false,
+          allowAnyLocalhostPort: false,
         });
         await proxy.start();
         const SimulatedWebSocketClass = createProxiedWebSocketClass(
@@ -500,7 +500,7 @@ describe("Proxy Error Handling", () => {
         proxy = new SSEWebSocketProxy({
           port: proxyPort,
           allowedHosts: [`http://localhost:${backendPort}`],
-        allowAnyLocalhostPort: false,
+          allowAnyLocalhostPort: false,
         });
         await proxy.start();
         const SimulatedWebSocketClass = createProxiedWebSocketClass(
@@ -585,7 +585,7 @@ describe("Proxy Error Handling", () => {
         proxy = new SSEWebSocketProxy({
           port: proxyPort,
           allowedHosts: [`http://localhost:${backendPort}`],
-        allowAnyLocalhostPort: false,
+          allowAnyLocalhostPort: false,
         });
         await proxy.start();
         const SimulatedWebSocketClass = createProxiedWebSocketClass(

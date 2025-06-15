@@ -1,6 +1,6 @@
 import getPort from "get-port";
-import { SimulatedWebsocket } from "sse-proxied-websocket/node";
-import { SSEWebSocketProxy } from "sse-websocket-proxy";
+import { SimulatedWebsocket } from "@convex-dev/sse-proxied-websocket/node";
+import { SSEWebSocketProxy } from "@convex-dev/sse-websocket-proxy";
 
 async function runTests() {
   const agent = "Proxied SSE WebSocket";

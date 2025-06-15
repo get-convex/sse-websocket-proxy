@@ -7,13 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      sse-proxied-websocket:
-        specifier: link:websocket
-        version: link:websocket
-      sse-websocket-proxy:
-        specifier: link:proxy
-        version: link:proxy
     devDependencies:
       prettier:
         specifier: ^3.5.3
@@ -21,6 +14,12 @@ importers:
 
   autobahn-tests:
     dependencies:
+      '@convex-dev/sse-proxied-websocket':
+        specifier: workspace:sse-proxied-websocket
+        version: link:../websocket
+      '@convex-dev/sse-websocket-proxy':
+        specifier: workspace:sse-ws-proxy
+        version: link:../proxy
       '@types/node':
         specifier: ^22.15.30
         version: 22.15.31
@@ -30,12 +29,6 @@ importers:
       get-port:
         specifier: ^7.1.0
         version: 7.1.0
-      sse-proxied-websocket:
-        specifier: workspace:sse-proxied-websocket
-        version: link:../websocket
-      sse-websocket-proxy:
-        specifier: workspace:sse-ws-proxy
-        version: link:../proxy
       tsdown:
         specifier: ^0.12.7
         version: 0.12.7(typescript@5.8.2)
@@ -86,13 +79,13 @@ importers:
 
   websocket:
     dependencies:
-      '@types/eventsource':
-        specifier: ^3.0.0
-        version: 3.0.0
       eventsource:
         specifier: ^4.0.0
         version: 4.0.0
     devDependencies:
+      '@convex-dev/sse-websocket-proxy':
+        specifier: 'workspace:'
+        version: link:../proxy
       '@types/node':
         specifier: ^22.15.30
         version: 22.15.31
@@ -102,9 +95,6 @@ importers:
       get-port:
         specifier: ^7.1.0
         version: 7.1.0
-      sse-websocket-proxy:
-        specifier: workspace:sse-ws-proxy
-        version: link:../proxy
       tsdown:
         specifier: ^0.12.7
         version: 0.12.7(typescript@5.8.2)
@@ -644,10 +634,6 @@ packages:
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
-
-  '@types/eventsource@3.0.0':
-    resolution: {integrity: sha512-yEhFj31FTD29DtNeqePu+A+lD6loRef6YOM5XfN1kUwBHyy2DySGlA3jJU+FbQSkrfmlBVluf2Dub/OyReFGKA==}
-    deprecated: This is a stub types definition. eventsource provides its own type definitions, so you do not need this installed.
 
   '@types/node@22.15.31':
     resolution: {integrity: sha512-jnVe5ULKl6tijxUhvQeNbQG/84fHfg+yMak02cT8QVhBx/F05rAVxCGBYYTh2EKz22D6JF5ktXuNwdx7b9iEGw==}
@@ -1372,10 +1358,6 @@ snapshots:
   '@types/estree@1.0.7': {}
 
   '@types/estree@1.0.8': {}
-
-  '@types/eventsource@3.0.0':
-    dependencies:
-      eventsource: 4.0.0
 
   '@types/node@22.15.31':
     dependencies:
