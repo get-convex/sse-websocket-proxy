@@ -52,27 +52,25 @@ export class SSEWebSocketProxy {
   private isBackendAllowed(backendUrl: string): boolean {
     try {
       const url = new URL(backendUrl)
-      
+
       // Check localhost/127.0.0.1 (any port allowed if enabled)
       if (this.config.allowAnyLocalhostPort) {
-        const isLocalhost = url.hostname === 'localhost' || 
-                           url.hostname === '127.0.0.1' || 
-                           url.hostname === '::1'
+        const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1'
         if (isLocalhost) {
           return true
         }
       }
-      
+
       // Check against allowed hosts (exact match including port)
       const hostWithPort = url.port ? `${url.hostname}:${url.port}` : url.hostname
       const hostWithoutPort = url.hostname
-      
+
       for (const allowedHost of this.config.allowedHosts) {
         try {
           const allowedUrl = new URL(allowedHost)
           const allowedHostWithPort = allowedUrl.port ? `${allowedUrl.hostname}:${allowedUrl.port}` : allowedUrl.hostname
           const allowedHostWithoutPort = allowedUrl.hostname
-          
+
           // Match with or without port, and ensure protocol compatibility
           // WebSocket protocols (ws/wss) should match HTTP protocols (http/https)
           const normalizeProtocol = (protocol: string): string => {
@@ -81,9 +79,11 @@ export class SSEWebSocketProxy {
             if (p === 'wss') return 'https'
             return p
           }
-          
-          if ((hostWithPort === allowedHostWithPort || hostWithoutPort === allowedHostWithoutPort) &&
-              normalizeProtocol(url.protocol) === normalizeProtocol(allowedUrl.protocol)) {
+
+          if (
+            (hostWithPort === allowedHostWithPort || hostWithoutPort === allowedHostWithoutPort) &&
+            normalizeProtocol(url.protocol) === normalizeProtocol(allowedUrl.protocol)
+          ) {
             return true
           }
         } catch {
@@ -91,7 +91,7 @@ export class SSEWebSocketProxy {
           continue
         }
       }
-      
+
       return false
     } catch {
       // Invalid URL
@@ -297,16 +297,16 @@ export class SSEWebSocketProxy {
       try {
         // Parse and validate the message request
         const messageRequest = decodeMessageRequest(body)
-        this.verboseLog(`Received message from client (session ${client.sessionId}):`, messageRequest)
-        
+        this.verboseLog(`Received message from client:`, messageRequest)
+
         if (isTextMessageRequest(messageRequest)) {
           // Send text message directly to WebSocket backend
-          this.verboseLog(`Sending text message to WebSocket backend (session ${client.sessionId}):`, messageRequest.data)
+          this.verboseLog(`Sending text message to WebSocket backend:`, messageRequest.data)
           client.websocket.send(messageRequest.data)
         } else if (isBinaryMessageRequest(messageRequest)) {
           // Decode base64 data and send as binary to WebSocket backend
           const binaryData = decodeBinaryData(messageRequest.data)
-          this.verboseLog(`Sending binary message to WebSocket backend (session ${client.sessionId}): ${binaryData.length} bytes`)
+          this.verboseLog(`Sending binary message to WebSocket backend: ${binaryData.length} bytes`)
           client.websocket.send(binaryData)
         }
 
@@ -315,7 +315,7 @@ export class SSEWebSocketProxy {
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ success: true }))
       } catch (error) {
-        console.error(`Failed to process message for session ${client.sessionId}:`, error)
+        console.error(`Failed to process message for session:`, error)
         res.writeHead(400, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
@@ -375,7 +375,7 @@ export class SSEWebSocketProxy {
         })
 
         // Close the backend WebSocket with the requested code/reason
-        console.log(`Closing WebSocket for session ${client.sessionId} with code ${code}, reason: ${reason}`)
+        console.log(`Closing WebSocket with code ${code}, reason: ${reason}`)
 
         // Handle different WebSocket states
         if (client.websocket.readyState === WebSocket.CONNECTING) {
@@ -431,7 +431,9 @@ export class SSEWebSocketProxy {
           // Handle other binary types
           base64Data = Buffer.from(data as any).toString('base64')
         }
-        this.verboseLog(`Received binary message from WebSocket backend (session ${sessionId}): ${data.length || (data as any).byteLength || 0} bytes`)
+        this.verboseLog(
+          `Received binary message from WebSocket backend (session ${sessionId}): ${'length' in data ? data.length : (data as any).byteLength || 0} bytes`,
+        )
         this.sendSSEMessage(sseResponse, encodeBinaryDataMessage(base64Data, Date.now()))
       } else {
         // Text message
@@ -448,7 +450,7 @@ export class SSEWebSocketProxy {
     websocket.on('close', (code, reason) => {
       console.log(`WebSocket closed (session ${sessionId}): code=${code}, reason=${reason.toString()}`)
       this.verboseLog(`WebSocket close event fired for session ${sessionId}: code=${code}, reason=${reason.toString()}`)
-      
+
       // Determine if close was clean (normal closure codes)
       const wasClean = code >= 1000 && code <= 1003
 
@@ -513,12 +515,12 @@ export class SSEWebSocketProxy {
     // The backend URL is now passed directly from the client, so we just need to ensure
     // localhost uses IPv4 to avoid connection issues
     const url = new URL(backendUrl)
-    
+
     // Force IPv4 for localhost to avoid IPv6 connection issues
     if (url.hostname === 'localhost') {
       url.hostname = '127.0.0.1'
     }
-    
+
     return url.toString()
   }
 
