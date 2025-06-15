@@ -13,11 +13,18 @@ program
   .option('-k, --keepalive <ms>', 'Keepalive interval in milliseconds', '30000')
   .option('-t, --timeout <ms>', 'Connection timeout in milliseconds', '60000')
   .option('-v, --verbose', 'Enable verbose logging (same as SSE_WS_PROXY_VERBOSE=1)')
-  .option('--allow-host <url>', 'Allow connections to this host (can be used multiple times)', (value, previous) => {
-    return previous ? [...previous, value] : [value]
-  }, [])
+  .option(
+    '--allow-host <url>',
+    'Allow connections to this host (can be used multiple times)',
+    (value: string, previous: string[]) => {
+      return previous ? [...previous, value] : [value]
+    },
+    [],
+  )
   .option('--allow-any-localhost-port', 'Allow connections to any localhost/127.0.0.1 port')
-  .addHelpText('after', `
+  .addHelpText(
+    'after',
+    `
 Examples:
   $ sse-websocket-proxy --allow-host https://api.example.com   # Allow only api.example.com
   $ sse-websocket-proxy --allow-any-localhost-port            # Allow any localhost port
@@ -39,7 +46,8 @@ API Endpoints:
 Security:
   You must specify at least one allowed host or use --allow-any-localhost-port
   By default, no destinations are allowed for security
-`)
+`,
+  )
 
 program.parse(process.argv)
 

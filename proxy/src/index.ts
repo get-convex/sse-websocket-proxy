@@ -34,7 +34,6 @@ export class SSEWebSocketProxy {
     this.config = {
       keepaliveInterval: 30000, // 30 seconds
       connectionTimeout: 60000, // 60 seconds
-      allowAnyLocalhostPort: false, // Default to NOT allowing localhost
       ...config,
     }
   }
