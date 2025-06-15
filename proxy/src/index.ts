@@ -14,6 +14,7 @@ export interface ProxyConfig {
   port: number
   allowedHosts: string[]
   allowAnyLocalhostPort: boolean
+  dangerouslyAllowAnyHost?: boolean
   keepaliveInterval?: number
   connectionTimeout?: number
 }
@@ -51,6 +52,12 @@ export class SSEWebSocketProxy {
   private isBackendAllowed(backendUrl: string): boolean {
     try {
       const url = new URL(backendUrl)
+
+      // DANGEROUS: Allow any host if explicitly enabled
+      if (this.config.dangerouslyAllowAnyHost) {
+        console.warn(`⚠️  SECURITY WARNING: dangerouslyAllowAnyHost is enabled - allowing connection to ${url.hostname}:${url.port || (url.protocol === 'wss:' ? 443 : 80)}`)
+        return true
+      }
 
       // Check localhost/127.0.0.1 (any port allowed if enabled)
       if (this.config.allowAnyLocalhostPort) {
@@ -108,6 +115,9 @@ export class SSEWebSocketProxy {
         console.log(`SSE-WebSocket Proxy listening on port ${this.config.port}`)
         console.log(`Allowed hosts: ${this.config.allowedHosts.length > 0 ? this.config.allowedHosts.join(', ') : 'none'}`)
         console.log(`Localhost allowed: ${this.config.allowAnyLocalhostPort ? 'yes (any port)' : 'no'}`)
+        if (this.config.dangerouslyAllowAnyHost) {
+          console.warn(`⚠️  SECURITY WARNING: Any host connections allowed (--dangerously-allow-any-host)`)
+        }
 
         // Cleanup inactive connections
         this.cleanupInterval = setInterval(() => {

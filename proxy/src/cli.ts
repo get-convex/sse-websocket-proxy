@@ -22,6 +22,7 @@ program
     [],
   )
   .option('--allow-any-localhost-port', 'Allow connections to any localhost/127.0.0.1 port')
+  .option('--dangerously-allow-any-host', 'DANGEROUS: Allow connections to any host (disables all security)')
   .addHelpText(
     'after',
     `
@@ -30,6 +31,7 @@ Examples:
   $ sse-websocket-proxy --allow-any-localhost-port            # Allow any localhost port
   $ sse-websocket-proxy --allow-host wss://ws.example.com --allow-host https://api.other.com  # Multiple hosts
   $ sse-websocket-proxy --allow-any-localhost-port --verbose  # Localhost + verbose logging
+  $ sse-websocket-proxy --dangerously-allow-any-host          # DANGEROUS: Allow any host
 
 Usage in client:
   The client specifies the backend URL when connecting:
@@ -46,6 +48,7 @@ API Endpoints:
 Security:
   You must specify at least one allowed host or use --allow-any-localhost-port
   By default, no destinations are allowed for security
+  Use --dangerously-allow-any-host only in development environments!
 `,
   )
 
@@ -54,9 +57,9 @@ program.parse(process.argv)
 const options = program.opts()
 
 async function main() {
-  // Validate that at least one allowed destination is specified
-  if (!options.allowAnyLocalhostPort && (!options.allowHost || options.allowHost.length === 0)) {
-    console.error('Error: You must specify at least one allowed host (--allow-host) or use --allow-any-localhost-port')
+  // Validate that at least one allowed destination is specified (unless dangerously allowing any host)
+  if (!options.dangerouslyAllowAnyHost && !options.allowAnyLocalhostPort && (!options.allowHost || options.allowHost.length === 0)) {
+    console.error('Error: You must specify at least one allowed host (--allow-host), use --allow-any-localhost-port, or --dangerously-allow-any-host')
     console.error('Run with --help for usage examples')
     process.exit(1)
   }
@@ -70,6 +73,7 @@ async function main() {
     port: parseInt(options.port),
     allowedHosts: options.allowHost || [],
     allowAnyLocalhostPort: !!options.allowAnyLocalhostPort,
+    dangerouslyAllowAnyHost: !!options.dangerouslyAllowAnyHost,
     keepaliveInterval: parseInt(options.keepalive),
     connectionTimeout: parseInt(options.timeout),
   })
