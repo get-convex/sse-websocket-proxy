@@ -28,9 +28,16 @@
   "types": "./dist/node.d.cts",
   "exports": {
     ".": {
-      "sse-ws-proxy-development": "./src/index.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "node": {
+        "sse-ws-proxy-development": "./src/node.ts",
+        "import": "./dist/node.js",
+        "require": "./dist/node.cjs"
+      },
+      "default": {
+        "sse-ws-proxy-development": "./src/index.ts",
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      }
     },
     "./node": {
       "sse-ws-proxy-development": "./src/node.ts",

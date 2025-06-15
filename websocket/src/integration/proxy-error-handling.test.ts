@@ -171,7 +171,8 @@ describe("Proxy Error Handling", () => {
     // Start a real proxy pointing to non-existent backend
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
-      backendUrl: `ws://localhost:${nonExistentBackendPort}`, // This backend doesn't exist
+      allowedHosts: [`ws://localhost:${nonExistentBackendPort}`],
+      allowAnyLocalhostPort: false, // This backend doesn't exist
     });
 
     await proxy.start();
@@ -219,7 +220,8 @@ describe("Proxy Error Handling", () => {
 
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
-      backendUrl: `ws://localhost:${nonExistentBackendPort}`,
+      allowedHosts: [`ws://localhost:${nonExistentBackendPort}`],
+      allowAnyLocalhostPort: false,
     });
 
     await proxy.start();
@@ -280,7 +282,8 @@ describe("Proxy Error Handling", () => {
       // Start proxy pointing to real backend
       proxy = new SSEWebSocketProxy({
         port: proxyPort,
-        backendUrl: `http://localhost:${backendPort}`,
+        allowedHosts: [`http://localhost:${backendPort}`],
+        allowAnyLocalhostPort: false,
       });
 
       await proxy.start();
@@ -345,7 +348,8 @@ describe("Proxy Error Handling", () => {
       // Start proxy pointing to real backend
       proxy = new SSEWebSocketProxy({
         port: proxyPort,
-        backendUrl: `http://localhost:${backendPort}`,
+        allowedHosts: [`http://localhost:${backendPort}`],
+        allowAnyLocalhostPort: false,
       });
 
       await proxy.start();
@@ -409,11 +413,11 @@ describe("Proxy Error Handling", () => {
       try {
         proxy = new SSEWebSocketProxy({
           port: proxyPort,
-          backendUrl: `http://localhost:${backendPort}`,
+          allowedHosts: [`http://localhost:${backendPort}`],
+        allowAnyLocalhostPort: false,
         });
         await proxy.start();
         const SimulatedWebSocketClass = createProxiedWebSocketClass(
-          true,
           `http://localhost:${proxyPort}`,
         );
 
@@ -495,11 +499,11 @@ describe("Proxy Error Handling", () => {
       try {
         proxy = new SSEWebSocketProxy({
           port: proxyPort,
-          backendUrl: `http://localhost:${backendPort}`,
+          allowedHosts: [`http://localhost:${backendPort}`],
+        allowAnyLocalhostPort: false,
         });
         await proxy.start();
         const SimulatedWebSocketClass = createProxiedWebSocketClass(
-          true,
           `http://localhost:${proxyPort}`,
         );
 
@@ -580,11 +584,11 @@ describe("Proxy Error Handling", () => {
       try {
         proxy = new SSEWebSocketProxy({
           port: proxyPort,
-          backendUrl: `http://localhost:${backendPort}`,
+          allowedHosts: [`http://localhost:${backendPort}`],
+        allowAnyLocalhostPort: false,
         });
         await proxy.start();
         const SimulatedWebSocketClass = createProxiedWebSocketClass(
-          true,
           `http://localhost:${proxyPort}`,
         );
 

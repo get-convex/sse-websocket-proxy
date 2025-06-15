@@ -73,22 +73,13 @@ export class SimulatedWebsocket extends EventTarget {
   private async connect(): Promise<void> {
     // Generate a session ID
     this.sessionId = this.generateSessionId();
+    console.log("proxy url:", this.proxyUrl);
+    console.log("backend url:", this.url);
 
-    // Construct the SSE URL
+    // Construct the SSE URL with backend parameter
     const sseUrl = new URL("/sse", this.proxyUrl);
     sseUrl.searchParams.set("sessionId", this.sessionId);
-
-    // Add the original WebSocket path to the SSE URL
-    const originalUrl = new URL(this.url);
-    if (originalUrl.pathname !== "/") {
-      sseUrl.pathname = `/sse${originalUrl.pathname}`;
-    }
-    if (originalUrl.search) {
-      // Merge search params
-      for (const [key, value] of originalUrl.searchParams) {
-        sseUrl.searchParams.set(key, value);
-      }
-    }
+    sseUrl.searchParams.set("backend", this.url); // Pass the full WebSocket URL to the proxy
 
     try {
       this.eventSource = new EventSource(sseUrl.toString());
@@ -443,34 +434,29 @@ export class SimulatedWebsocket extends EventTarget {
 }
 
 /**
- * Factory function that creates WebSocket classes with consistent interfaces.
- * This is useful for testing or situations where you want to switch between
- * native WebSocket and proxied WebSocket implementations.
+ * Factory function that creates a WebSocket class configured to use the proxy.
+ * Returns a constructor that creates SimulatedWebSocket instances with the
+ * specified proxy URL.
  *
- * @param useProxy - Whether to return a proxied WebSocket class or native WebSocket
- * @param proxyUrl - The proxy URL (required if useProxy is true)
+ * @param proxyUrl - The proxy URL to use for all WebSocket connections
  * @returns A WebSocket class constructor
  */
-export function createProxiedWebSocketClass(useProxy: boolean, proxyUrl?: string): any {
-  if (useProxy) {
-    if (!proxyUrl) {
-      throw new Error("proxyUrl is required when useProxy is true");
-    }
-    // Return a constructor function that creates SimulatedWebSocket instances
-    const ProxiedConstructor = function (this: any, url: string, protocols?: string | string[]) {
-      if (!(this instanceof ProxiedConstructor)) {
-        return new (ProxiedConstructor as any)(url, protocols);
-      }
-      return new SimulatedWebsocket(url, protocols, proxyUrl);
-    };
-
-    // Copy static properties from SimulatedWebsocket if any
-    Object.setPrototypeOf(ProxiedConstructor.prototype, SimulatedWebsocket.prototype);
-    Object.setPrototypeOf(ProxiedConstructor, SimulatedWebsocket);
-
-    return ProxiedConstructor;
-  } else {
-    // Return the native browser WebSocket class (global)
-    return globalThis.WebSocket;
+export function createProxiedWebSocketClass(proxyUrl: string): any {
+  if (!proxyUrl) {
+    throw new Error("proxyUrl is required");
   }
+
+  // Return a constructor function that creates SimulatedWebSocket instances
+  const ProxiedConstructor = function (this: any, url: string, protocols?: string | string[]) {
+    if (!(this instanceof ProxiedConstructor)) {
+      return new (ProxiedConstructor as any)(url, protocols);
+    }
+    return new SimulatedWebsocket(url, protocols, proxyUrl);
+  };
+
+  // Copy static properties from SimulatedWebsocket if any
+  Object.setPrototypeOf(ProxiedConstructor.prototype, SimulatedWebsocket.prototype);
+  Object.setPrototypeOf(ProxiedConstructor, SimulatedWebsocket);
+
+  return ProxiedConstructor;
 }

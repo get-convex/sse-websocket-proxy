@@ -27,7 +27,8 @@ describe("Simple Integration Test", () => {
     console.log(`Starting SSEWebSocketProxy on port ${PROXY_PORT}...`);
     proxy = new SSEWebSocketProxy({
       port: PROXY_PORT,
-      backendUrl: `http://localhost:${BACKEND_PORT}`,
+      allowedHosts: [`http://localhost:${BACKEND_PORT}`],
+    allowAnyLocalhostPort: false,
     });
     await proxy.start();
     console.log("SSEWebSocketProxy ready");

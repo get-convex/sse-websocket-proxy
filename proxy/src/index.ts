@@ -11,8 +11,9 @@ import {
 import { decodeMessageRequest, decodeBinaryData, isTextMessageRequest, isBinaryMessageRequest } from './messages-protocol.js'
 
 export interface ProxyConfig {
-  backendUrl: string
   port: number
+  allowedHosts: string[]
+  allowAnyLocalhostPort: boolean
   keepaliveInterval?: number
   connectionTimeout?: number
 }
@@ -33,7 +34,68 @@ export class SSEWebSocketProxy {
     this.config = {
       keepaliveInterval: 30000, // 30 seconds
       connectionTimeout: 60000, // 60 seconds
+      allowAnyLocalhostPort: false, // Default to NOT allowing localhost
       ...config,
+    }
+  }
+
+  private isVerbose(): boolean {
+    return !!process.env.SSE_WS_PROXY_VERBOSE
+  }
+
+  private verboseLog(...args: any[]): void {
+    if (this.isVerbose()) {
+      console.log('[SSE-WS-PROXY-VERBOSE]', ...args)
+    }
+  }
+
+  private isBackendAllowed(backendUrl: string): boolean {
+    try {
+      const url = new URL(backendUrl)
+      
+      // Check localhost/127.0.0.1 (any port allowed if enabled)
+      if (this.config.allowAnyLocalhostPort) {
+        const isLocalhost = url.hostname === 'localhost' || 
+                           url.hostname === '127.0.0.1' || 
+                           url.hostname === '::1'
+        if (isLocalhost) {
+          return true
+        }
+      }
+      
+      // Check against allowed hosts (exact match including port)
+      const hostWithPort = url.port ? `${url.hostname}:${url.port}` : url.hostname
+      const hostWithoutPort = url.hostname
+      
+      for (const allowedHost of this.config.allowedHosts) {
+        try {
+          const allowedUrl = new URL(allowedHost)
+          const allowedHostWithPort = allowedUrl.port ? `${allowedUrl.hostname}:${allowedUrl.port}` : allowedUrl.hostname
+          const allowedHostWithoutPort = allowedUrl.hostname
+          
+          // Match with or without port, and ensure protocol compatibility
+          // WebSocket protocols (ws/wss) should match HTTP protocols (http/https)
+          const normalizeProtocol = (protocol: string): string => {
+            const p = protocol.replace(':', '')
+            if (p === 'ws') return 'http'
+            if (p === 'wss') return 'https'
+            return p
+          }
+          
+          if ((hostWithPort === allowedHostWithPort || hostWithoutPort === allowedHostWithoutPort) &&
+              normalizeProtocol(url.protocol) === normalizeProtocol(allowedUrl.protocol)) {
+            return true
+          }
+        } catch {
+          // If allowedHost is not a valid URL, skip it
+          continue
+        }
+      }
+      
+      return false
+    } catch {
+      // Invalid URL
+      return false
     }
   }
 
@@ -45,7 +107,8 @@ export class SSEWebSocketProxy {
 
       this.server.listen(this.config.port, () => {
         console.log(`SSE-WebSocket Proxy listening on port ${this.config.port}`)
-        console.log(`Proxying to backend: ${this.config.backendUrl}`)
+        console.log(`Allowed hosts: ${this.config.allowedHosts.length > 0 ? this.config.allowedHosts.join(', ') : 'none'}`)
+        console.log(`Localhost allowed: ${this.config.allowAnyLocalhostPort ? 'yes (any port)' : 'no'}`)
 
         // Cleanup inactive connections
         this.cleanupInterval = setInterval(() => {
@@ -95,6 +158,26 @@ export class SSEWebSocketProxy {
   private handleSSEConnection(req: IncomingMessage, res: ServerResponse): void {
     const url = new URL(req.url!, `http://localhost:${this.config.port}`)
     const sessionId = url.searchParams.get('sessionId') || this.generateSessionId()
+    const backendUrl = url.searchParams.get('backend')
+
+    // Enhanced connection logging
+    console.log(`SSE connection established: session=${sessionId}, client_url=${req.url}, client_ip=${req.socket.remoteAddress}`)
+
+    // Validate backend URL is provided
+    if (!backendUrl) {
+      console.log(`Rejecting connection: no backend URL specified (session ${sessionId})`)
+      res.writeHead(400, { 'Content-Type': 'text/plain' })
+      res.end('Missing backend parameter. Usage: /sse?backend=ws://localhost:8080&sessionId=...')
+      return
+    }
+
+    // Validate backend URL is allowed
+    if (!this.isBackendAllowed(backendUrl)) {
+      console.log(`Rejecting connection: backend URL not allowed: ${backendUrl} (session ${sessionId})`)
+      res.writeHead(403, { 'Content-Type': 'text/plain' })
+      res.end(`Backend URL not allowed: ${backendUrl}`)
+      return
+    }
 
     // Set up SSE headers
     res.writeHead(200, {
@@ -105,8 +188,8 @@ export class SSEWebSocketProxy {
     })
 
     // Create WebSocket connection to backend, preserving the original path structure
-    const wsUrl = this.buildWebSocketUrl(this.config.backendUrl, req.url!)
-    console.log(`Connecting to WebSocket backend: ${wsUrl}`)
+    const wsUrl = this.buildWebSocketUrl(backendUrl, req.url!)
+    console.log(`Connecting to WebSocket backend: ${wsUrl} (for session ${sessionId})`)
     const websocket = new WsWebSocket(wsUrl)
     websocket.binaryType = 'arraybuffer'
 
@@ -214,12 +297,16 @@ export class SSEWebSocketProxy {
       try {
         // Parse and validate the message request
         const messageRequest = decodeMessageRequest(body)
+        this.verboseLog(`Received message from client (session ${client.sessionId}):`, messageRequest)
+        
         if (isTextMessageRequest(messageRequest)) {
           // Send text message directly to WebSocket backend
+          this.verboseLog(`Sending text message to WebSocket backend (session ${client.sessionId}):`, messageRequest.data)
           client.websocket.send(messageRequest.data)
         } else if (isBinaryMessageRequest(messageRequest)) {
           // Decode base64 data and send as binary to WebSocket backend
           const binaryData = decodeBinaryData(messageRequest.data)
+          this.verboseLog(`Sending binary message to WebSocket backend (session ${client.sessionId}): ${binaryData.length} bytes`)
           client.websocket.send(binaryData)
         }
 
@@ -325,6 +412,8 @@ export class SSEWebSocketProxy {
     const { websocket, sseResponse, sessionId } = client
 
     websocket.on('open', () => {
+      console.log(`WebSocket connected to backend (session ${sessionId})`)
+      this.verboseLog(`WebSocket connected event fired for session ${sessionId}`)
       this.sendSSEMessage(sseResponse, encodeWebSocketConnectedMessage(sessionId, Date.now()))
     })
 
@@ -342,9 +431,11 @@ export class SSEWebSocketProxy {
           // Handle other binary types
           base64Data = Buffer.from(data as any).toString('base64')
         }
+        this.verboseLog(`Received binary message from WebSocket backend (session ${sessionId}): ${data.length || (data as any).byteLength || 0} bytes`)
         this.sendSSEMessage(sseResponse, encodeBinaryDataMessage(base64Data, Date.now()))
       } else {
         // Text message
+        this.verboseLog(`Received text message from WebSocket backend (session ${sessionId}):`, data.toString())
         this.sendSSEMessage(sseResponse, encodeDataMessage(data.toString(), Date.now()))
       }
     })
@@ -355,6 +446,9 @@ export class SSEWebSocketProxy {
     })
 
     websocket.on('close', (code, reason) => {
+      console.log(`WebSocket closed (session ${sessionId}): code=${code}, reason=${reason.toString()}`)
+      this.verboseLog(`WebSocket close event fired for session ${sessionId}: code=${code}, reason=${reason.toString()}`)
+      
       // Determine if close was clean (normal closure codes)
       const wasClean = code >= 1000 && code <= 1003
 
@@ -379,6 +473,7 @@ export class SSEWebSocketProxy {
     if (res.destroyed) return
 
     const message = `data: ${encodedData}\n\n`
+    this.verboseLog(`Sending SSE message to client:`, encodedData)
     res.write(message)
   }
 
@@ -415,36 +510,16 @@ export class SSEWebSocketProxy {
   }
 
   private buildWebSocketUrl(backendUrl: string, originalRequestUrl: string): string {
-    // Extract the backend URL
-    const backendUrlObj = new URL(backendUrl)
-    const protocol = backendUrlObj.protocol === 'https:' ? 'wss:' : 'ws:'
-
+    // The backend URL is now passed directly from the client, so we just need to ensure
+    // localhost uses IPv4 to avoid connection issues
+    const url = new URL(backendUrl)
+    
     // Force IPv4 for localhost to avoid IPv6 connection issues
-    let host = backendUrlObj.host
-    if (host === 'localhost:8000' || host === 'localhost') {
-      host = host.replace('localhost', '127.0.0.1')
+    if (url.hostname === 'localhost') {
+      url.hostname = '127.0.0.1'
     }
-
-    if (originalRequestUrl) {
-      const originalUrl = new URL(originalRequestUrl, `http://localhost:${this.config.port}`)
-
-      // Strip /sse prefix if present, then use the remaining path
-      let targetPath = originalUrl.pathname
-      if (targetPath.startsWith('/sse')) {
-        targetPath = targetPath.substring(4) // Remove '/sse'
-        if (!targetPath.startsWith('/')) {
-          targetPath = '/' + targetPath // Ensure it starts with /
-        }
-      }
-
-      const fullPath = targetPath + originalUrl.search
-
-      return `${protocol}//${host}${fullPath}`
-    }
-
-    // Fallback if no URL provided
-    console.log('No original request URL provided, using root path')
-    return `${protocol}//${host}/`
+    
+    return url.toString()
   }
 
   private generateSessionId(): string {

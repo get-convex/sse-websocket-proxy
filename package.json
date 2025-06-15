@@ -15,5 +15,8 @@
   "devDependencies": {
     "prettier": "^3.5.3"
   },
-  "dependencies": {}
+  "dependencies": {
+    "sse-proxied-websocket": "link:websocket",
+    "sse-websocket-proxy": "link:proxy"
+  }
 }

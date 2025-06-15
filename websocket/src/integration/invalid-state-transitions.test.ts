@@ -92,7 +92,8 @@ describe("Invalid State Transitions", () => {
     const testBackend = await WSTestBackend.create({ port: backendPort });
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
-      backendUrl: `http://localhost:${backendPort}`,
+      allowedHosts: [`http://localhost:${backendPort}`],
+    allowAnyLocalhostPort: false,
     });
 
     await proxy.start();
@@ -157,7 +158,8 @@ describe("Invalid State Transitions", () => {
     const testBackend = await WSTestBackend.create({ port: backendPort });
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
-      backendUrl: `http://localhost:${backendPort}`,
+      allowedHosts: [`http://localhost:${backendPort}`],
+    allowAnyLocalhostPort: false,
     });
 
     await proxy.start();
@@ -199,7 +201,8 @@ describe("Invalid State Transitions", () => {
     const testBackend = await WSTestBackend.create({ port: backendPort });
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
-      backendUrl: `http://localhost:${backendPort}`,
+      allowedHosts: [`http://localhost:${backendPort}`],
+    allowAnyLocalhostPort: false,
     });
 
     await proxy.start();
@@ -251,7 +254,8 @@ describe("Invalid State Transitions", () => {
     const testBackend = await WSTestBackend.create({ port: backendPort });
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
-      backendUrl: `http://localhost:${backendPort}`,
+      allowedHosts: [`http://localhost:${backendPort}`],
+    allowAnyLocalhostPort: false,
     });
 
     await proxy.start();
@@ -319,7 +323,8 @@ describe("Invalid State Transitions", () => {
     const testBackend = await WSTestBackend.create({ port: backendPort });
     const proxy = new SSEWebSocketProxy({
       port: proxyPort,
-      backendUrl: `http://localhost:${backendPort}`,
+      allowedHosts: [`http://localhost:${backendPort}`],
+    allowAnyLocalhostPort: false,
     });
 
     await proxy.start();

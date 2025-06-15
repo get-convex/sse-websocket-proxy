@@ -1,21 +1,69 @@
 #!/usr/bin/env node
 
-/**
- * CLI script for running the SSE WebSocket Proxy
- * Usage: node cli.js [backend-url] [proxy-port]
- * Example: node cli.js wss://happy-animal-123.convex.cloud 3001
- */
-
+import { Command } from 'commander'
 import { SSEWebSocketProxy } from './index.js'
 
-// Configuration from command line args
-const BACKEND_URL = process.argv[2] || 'http://localhost:8000'
-const PROXY_PORT = parseInt(process.argv[3]) || 3001
+const program = new Command()
+
+program
+  .name('sse-websocket-proxy')
+  .description('A proxy server that converts WebSocket connections to Server-Sent Events (SSE) for browsers with network restrictions')
+  .version('0.0.1')
+  .option('-p, --port <port>', 'Port to run the proxy server on', '3001')
+  .option('-k, --keepalive <ms>', 'Keepalive interval in milliseconds', '30000')
+  .option('-t, --timeout <ms>', 'Connection timeout in milliseconds', '60000')
+  .option('-v, --verbose', 'Enable verbose logging (same as SSE_WS_PROXY_VERBOSE=1)')
+  .option('--allow-host <url>', 'Allow connections to this host (can be used multiple times)', (value, previous) => {
+    return previous ? [...previous, value] : [value]
+  }, [])
+  .option('--allow-any-localhost-port', 'Allow connections to any localhost/127.0.0.1 port')
+  .addHelpText('after', `
+Examples:
+  $ sse-websocket-proxy --allow-host https://api.example.com   # Allow only api.example.com
+  $ sse-websocket-proxy --allow-any-localhost-port            # Allow any localhost port
+  $ sse-websocket-proxy --allow-host wss://ws.example.com --allow-host https://api.other.com  # Multiple hosts
+  $ sse-websocket-proxy --allow-any-localhost-port --verbose  # Localhost + verbose logging
+
+Usage in client:
+  The client specifies the backend URL when connecting:
+  GET /sse?backend=ws://localhost:8080&sessionId=abc123
+
+Environment Variables:
+  SSE_WS_PROXY_VERBOSE=1   Enable verbose message logging (overrides --verbose)
+
+API Endpoints:
+  GET  /sse?backend=<url>&sessionId=<id>   Server-Sent Events endpoint with backend URL
+  POST /messages                           Send messages to WebSocket backend  
+  GET  /health                             Health check and connection status
+
+Security:
+  You must specify at least one allowed host or use --allow-any-localhost-port
+  By default, no destinations are allowed for security
+`)
+
+program.parse(process.argv)
+
+const options = program.opts()
 
 async function main() {
+  // Validate that at least one allowed destination is specified
+  if (!options.allowAnyLocalhostPort && (!options.allowHost || options.allowHost.length === 0)) {
+    console.error('Error: You must specify at least one allowed host (--allow-host) or use --allow-any-localhost-port')
+    console.error('Run with --help for usage examples')
+    process.exit(1)
+  }
+
+  // Set verbose mode if requested
+  if (options.verbose && !process.env.SSE_WS_PROXY_VERBOSE) {
+    process.env.SSE_WS_PROXY_VERBOSE = '1'
+  }
+
   const proxy = new SSEWebSocketProxy({
-    backendUrl: BACKEND_URL,
-    port: PROXY_PORT,
+    port: parseInt(options.port),
+    allowedHosts: options.allowHost || [],
+    allowAnyLocalhostPort: !!options.allowAnyLocalhostPort,
+    keepaliveInterval: parseInt(options.keepalive),
+    connectionTimeout: parseInt(options.timeout),
   })
 
   // Handle graceful shutdown

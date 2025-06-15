@@ -16,8 +16,9 @@ describe('SSEWebSocketProxy Basic Tests', () => {
     const DUMMY_BACKEND_PORT = await getPort()
 
     proxy = new SSEWebSocketProxy({
-      backendUrl: `ws://localhost:${DUMMY_BACKEND_PORT}`, // Dummy backend URL
       port: PROXY_PORT,
+      allowedHosts: [`ws://localhost:${DUMMY_BACKEND_PORT}`],
+      allowAnyLocalhostPort: false,
     })
 
     // Start the proxy
@@ -38,8 +39,9 @@ describe('SSEWebSocketProxy Basic Tests', () => {
     const DUMMY_BACKEND_PORT = await getPort()
 
     proxy = new SSEWebSocketProxy({
-      backendUrl: `ws://localhost:${DUMMY_BACKEND_PORT}`, // Dummy backend URL
       port: PROXY_PORT,
+      allowedHosts: [`ws://localhost:${DUMMY_BACKEND_PORT}`],
+      allowAnyLocalhostPort: false,
     })
 
     // Start the proxy

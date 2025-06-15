@@ -7,6 +7,13 @@ settings:
 importers:
 
   .:
+    dependencies:
+      sse-proxied-websocket:
+        specifier: link:websocket
+        version: link:websocket
+      sse-websocket-proxy:
+        specifier: link:proxy
+        version: link:proxy
     devDependencies:
       prettier:
         specifier: ^3.5.3
@@ -54,6 +61,9 @@ importers:
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
+      commander:
+        specifier: ^14.0.0
+        version: 14.0.0
       get-port:
         specifier: ^7.1.0
         version: 7.1.0
@@ -704,6 +714,10 @@ packages:
   chokidar@4.0.3:
     resolution: {integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==}
     engines: {node: '>= 14.16.0'}
+
+  commander@14.0.0:
+    resolution: {integrity: sha512-2uM9rYjPvyq39NwLRqaiLtWHyDC1FvryJDa2ATTVims5YAS4PupsEQsDvP14FqhFr0P49CYDugi59xaxJlTXRA==}
+    engines: {node: '>=20'}
 
   debug@4.4.1:
     resolution: {integrity: sha512-KcKCqiftBJcZr++7ykoDIEwSa3XWowTfNPo92BYxjXiyYEVrUQh2aLyhxBCwww+heortUFxEJYcRzosstTEBYQ==}
@@ -1437,6 +1451,8 @@ snapshots:
   chokidar@4.0.3:
     dependencies:
       readdirp: 4.1.2
+
+  commander@14.0.0: {}
 
   debug@4.4.1:
     dependencies:

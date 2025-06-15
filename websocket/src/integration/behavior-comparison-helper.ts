@@ -23,7 +23,7 @@ export async function withWsAndReference(
   const nativeBackendPort = await getPort();
   const nativeBackend = await WSTestBackend.create({ port: nativeBackendPort });
 
-  const NativeWebSocketClass = createProxiedWebSocketClass(false);
+  const NativeWebSocketClass = globalThis.WebSocket;
   const nativeBackendUrl = `ws://localhost:${nativeBackendPort}`;
 
   // Get the connection promise for the native backend
@@ -39,13 +39,13 @@ export async function withWsAndReference(
   const simulatedBackend = await WSTestBackend.create({ port: simulatedBackendPort });
   const proxy = new SSEWebSocketProxy({
     port: proxyPort,
-    backendUrl: `http://localhost:${simulatedBackendPort}`,
+    allowedHosts: [`http://localhost:${simulatedBackendPort}`],
+    allowAnyLocalhostPort: false,
   });
   await proxy.start();
 
   try {
     const SimulatedWebSocketClass = createProxiedWebSocketClass(
-      true,
       `http://localhost:${proxyPort}`,
     );
     const simulatedBackendUrl = `ws://localhost:${simulatedBackendPort}`;

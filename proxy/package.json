@@ -6,11 +6,19 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.cts",
+  "bin": {
+    "sse-websocket-proxy": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "sse-ws-proxy-development": "./src/index.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./cli": {
+      "sse-ws-proxy-development": "./src/cli.ts",
+      "import": "./dist/cli.js",
+      "require": "./dist/cli.cjs"
     },
     "./messages-protocol": {
       "sse-ws-proxy-development": "./src/messages-protocol.ts",
@@ -33,12 +41,14 @@
     "build": "tsdown",
     "start": "node dist/cli.js",
     "dev": "tsx src/cli.ts",
+    "cli": "node dist/cli.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@types/node": "^22.15.30",
     "@types/ws": "^8.18.1",
+    "commander": "^14.0.0",
     "get-port": "^7.1.0",
     "tsdown": "^0.12.7",
     "ws": "^8.18.2"

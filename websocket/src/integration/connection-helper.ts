@@ -24,7 +24,8 @@ export async function withWebsocketConnection<T>(
   // Start the proxy that connects to the test backend
   const proxy = new SSEWebSocketProxy({
     port: PROXY_PORT,
-    backendUrl: `http://localhost:${BACKEND_PORT}`,
+    allowedHosts: [`http://localhost:${BACKEND_PORT}`],
+    allowAnyLocalhostPort: false,
   });
   await proxy.start();
 
