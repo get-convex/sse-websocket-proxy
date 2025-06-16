@@ -1,6 +1,6 @@
 {
   "name": "@convex-dev/sse-proxied-websocket",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Simulated WebSocket powered by a proxy",
   "type": "module",
   "author": "Convex, Inc. <no-reply@convex.dev>",

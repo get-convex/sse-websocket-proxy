@@ -96,7 +96,7 @@ export class SimulatedWebsocket extends EventTarget {
   private setupEventSourceHandlers(): void {
     if (!this.eventSource) return;
 
-    if (typeof window !== undefined) {
+    if (typeof window !== "undefined") {
       this.pageUnloadTracker = () => {
         this.pageUnloading = true;
         if (this.eventSource) {
@@ -128,6 +128,14 @@ export class SimulatedWebsocket extends EventTarget {
     };
 
     this.eventSource.onerror = (error) => {
+      // If we're not closed,
+      if (this.eventSource && this.eventSource.readyState === EventSource.CLOSED) {
+        // EventSource is now closed - clean up listeners
+        if (this.pageUnloadTracker) {
+          window.removeEventListener("unload", this.pageUnloadTracker);
+        }
+      }
+
       // If user initiated close, don't fire error events
       if (this.userInitiatedClose) {
         return;
