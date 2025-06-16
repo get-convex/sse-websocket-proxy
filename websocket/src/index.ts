@@ -40,6 +40,8 @@ export class SimulatedWebsocket extends EventTarget {
   private eventSource: EventSource | null = null;
   private userInitiatedClose: boolean = false;
   private isWebSocketConnected: boolean = false;
+  private pageUnloading: boolean = false;
+  private pageUnloadTracker: (() => void) | undefined;
 
   public binaryType: "blob" | "arraybuffer";
 
@@ -94,6 +96,16 @@ export class SimulatedWebsocket extends EventTarget {
   private setupEventSourceHandlers(): void {
     if (!this.eventSource) return;
 
+    if (typeof window !== undefined) {
+      this.pageUnloadTracker = () => {
+        this.pageUnloading = true;
+        if (this.eventSource) {
+          this.eventSource.close();
+        }
+      };
+      window.addEventListener("beforeunload", this.pageUnloadTracker);
+    }
+
     this.eventSource.onopen = () => {
       // SSE connection established, but we're not "open" until the WebSocket backend connects
     };
@@ -116,12 +128,15 @@ export class SimulatedWebsocket extends EventTarget {
     };
 
     this.eventSource.onerror = (error) => {
-      console.error("SimulatedWebsocket: SSE connection error:", error);
-
       // If user initiated close, don't fire error events
       if (this.userInitiatedClose) {
         return;
       }
+      if (this.pageUnloading) {
+        return;
+      }
+
+      console.error("SimulatedWebsocket: SSE connection error:", error);
 
       if (this.readyState === WebSocket.OPEN) {
         // Connection was established but now has protocol error - close with 1006
