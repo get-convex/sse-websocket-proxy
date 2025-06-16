@@ -53,9 +53,11 @@ export class SSEWebSocketProxy {
     try {
       const url = new URL(backendUrl)
 
-      // DANGEROUS: Allow any host if explicitly enabled
+      // Allow any host if explicitly enabled
       if (this.config.dangerouslyAllowAnyHost) {
-        console.warn(`⚠️  SECURITY WARNING: dangerouslyAllowAnyHost is enabled - allowing connection to ${url.hostname}:${url.port || (url.protocol === 'wss:' ? 443 : 80)}`)
+        console.warn(
+          `⚠️  SECURITY WARNING: dangerouslyAllowAnyHost is enabled - allowing connection to ${url.hostname}:${url.port || (url.protocol === 'wss:' ? 443 : 80)}`,
+        )
         return true
       }
 
