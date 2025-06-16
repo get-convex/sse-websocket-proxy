@@ -1,7 +1,7 @@
 {
   "name": "@convex-dev/sse-proxied-websocket",
-  "version": "0.1.0-alpha.0",
-  "description": "",
+  "version": "0.1.0-alpha.1",
+  "description": "Simulated WebSocket powered by a proxy",
   "type": "module",
   "author": "Convex, Inc. <no-reply@convex.dev>",
   "license": "Apache-2.0",
@@ -11,41 +11,69 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "require": {
+        "node": {
+          "sse-ws-proxy-development": "./src/node.ts",
+          "types": "./dist/node.d.cts",
+          "require": "./dist/node.cjs"
+        },
+        "sse-ws-proxy-development": "./src/index.ts",
+        "types": "./dist/node.d.cts",
+        "require": "./dist/index.cjs"
+      },
+      "import": {
+        "node": {
+          "sse-ws-proxy-development": "./src/node.ts",
+          "types": "./dist/node.d.ts",
+          "import": "./dist/node.js"
+        },
+        "sse-ws-proxy-development": "./src/index.ts",
+        "types": "./dist/node.d.ts",
+        "import": "./dist/index.js"
+      }
+    },
+    "./node": {
+      "sse-ws-proxy-development": "./src/node.ts",
+      "require": {
+        "types": "./dist/node.d.cts",
+        "require": "./dist/node.cjs"
+      },
+      "import": {
+        "types": "./dist/node.d.ts",
+        "import": "./dist/node.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "packages.json",
+    "README.md",
+    "tsconfig.json",
+    "src/**/*",
+    "!src/integration",
+    "!src/integration/**/*",
+    "!src/**/*.test.*",
+    "tsdown.config.js"
+  ],
+  "dependencies": {
+    "eventsource": "^4.0.0"
+  },
   "devDependencies": {
+    "@arethetypeswrong/core": "^0.18.2",
+    "@convex-dev/sse-websocket-proxy": "workspace:",
     "@types/node": "^22.15.30",
     "@types/ws": "^8.18.1",
     "get-port": "^7.1.0",
-    "@convex-dev/sse-websocket-proxy": "workspace:",
     "tsdown": "^0.12.7",
     "tsx": "^4.7.1",
     "typescript": "5.8.2",
     "vitest": "^2.0.0",
     "ws": "^8.18.2"
-  },
-  "main": "./dist/node.cjs",
-  "module": "./dist/node.js",
-  "types": "./dist/node.d.cts",
-  "exports": {
-    ".": {
-      "node": {
-        "sse-ws-proxy-development": "./src/node.ts",
-        "import": "./dist/node.js",
-        "require": "./dist/node.cjs"
-      },
-      "default": {
-        "sse-ws-proxy-development": "./src/index.ts",
-        "import": "./dist/index.js",
-        "require": "./dist/index.cjs"
-      }
-    },
-    "./node": {
-      "sse-ws-proxy-development": "./src/node.ts",
-      "import": "./dist/node.js",
-      "require": "./dist/node.cjs"
-    },
-    "./package.json": "./package.json"
-  },
-  "dependencies": {
-    "eventsource": "^4.0.0"
   }
 }

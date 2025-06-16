@@ -12,12 +12,14 @@ export default [
       tsconfig: "./tsconfig.json",
       sourcemap: true,
     },
+    platform: "browser",
     sourcemap: true,
     clean: true, // (this is the default)
     // Compiled-in variables
     env: {
       npm_package_version: packageVersion,
     },
+    attw: true,
   }),
   defineConfig({
     entry: ["src/node.ts"],
@@ -26,6 +28,7 @@ export default [
       tsconfig: "./tsconfig.json",
       sourcemap: true,
     },
+    platform: "node",
     sourcemap: true,
     clean: true, // (this is the default)
     // Compiled-in variables
