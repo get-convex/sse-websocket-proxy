@@ -13,7 +13,7 @@ export class SimulatedWebsocket extends BaseSimulatedWebsocket {
 
 /**
  * Factory function that creates a WebSocket class configured to use the proxy.
- * Returns a constructor that creates SimulatedWebSocket instances with the 
+ * Returns a constructor that creates SimulatedWebSocket instances with the
  * specified proxy URL.
  *
  * @param proxyUrl - The proxy URL to use for all WebSocket connections
@@ -23,7 +23,7 @@ export function createProxiedWebSocketClass(proxyUrl: string): any {
   if (!proxyUrl) {
     throw new Error("proxyUrl is required");
   }
-  
+
   // Return a constructor function that creates SimulatedWebSocket instances
   const ProxiedConstructor = function (this: any, url: string, protocols?: string | string[]) {
     if (!(this instanceof ProxiedConstructor)) {
