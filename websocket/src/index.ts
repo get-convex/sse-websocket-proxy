@@ -1,8 +1,4 @@
-import {
-  decodeSSEMessage,
-  type SSEMessage,
-  isSessionSecretMessage,
-} from "@convex-dev/sse-websocket-proxy/sse-protocol";
+import { decodeSSEMessage, type SSEMessage } from "@convex-dev/sse-websocket-proxy/sse-protocol";
 import { encodeTextMessageRequest } from "@convex-dev/sse-websocket-proxy/messages-protocol";
 
 let EventSource = globalThis.EventSource;
