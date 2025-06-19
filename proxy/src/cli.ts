@@ -59,6 +59,7 @@ program.parse(process.argv)
 const options = program.opts()
 
 async function main() {
+  console.log('This proxy is beta, not officially supported software. Run at your own risk.')
   // Validate that at least one allowed destination is specified (unless dangerously allowing any host)
   if (!options.dangerouslyAllowAnyHost && !options.allowAnyLocalhostPort && (!options.allowHost || options.allowHost.length === 0)) {
     console.error(
