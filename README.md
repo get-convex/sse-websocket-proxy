@@ -1,3 +1,7 @@
+## This is beta software
+
+This package is not officially supported by Convex, it's a proof of concept for now. If this is a service you need, let us know.
+
 # SSE WS Proxy
 
 Similar to [sockjs](https://github.com/sockjs/sockjs-client), a WebSocket implementation powered by server-sent events.
