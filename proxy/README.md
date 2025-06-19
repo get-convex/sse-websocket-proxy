@@ -1,4 +1,6 @@
-the proxy
+SSE to WebSocket proxy.
+
+This package is not officially supported by Convex, it's a proof of concept for now. If this is a service you need, let us know.
 
 ### Dev notes
 
