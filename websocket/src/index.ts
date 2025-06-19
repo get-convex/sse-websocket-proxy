@@ -1,4 +1,4 @@
-import { decodeSSEMessage, type SSEMessage } from "@convex-dev/sse-websocket-proxy/sse-protocol";
+import { decodeSSEMessage, type SSEMessage, isSessionSecretMessage } from "@convex-dev/sse-websocket-proxy/sse-protocol";
 import { encodeTextMessageRequest } from "@convex-dev/sse-websocket-proxy/messages-protocol";
 
 let EventSource = globalThis.EventSource;
@@ -37,6 +37,7 @@ export class SimulatedWebsocket extends EventTarget {
 
   private proxyUrl: string;
   private sessionId: string | null = null;
+  private sessionSecret: string | null = null;
   private eventSource: EventSource | null = null;
   private userInitiatedClose: boolean = false;
   private isWebSocketConnected: boolean = false;
@@ -158,6 +159,12 @@ export class SimulatedWebsocket extends EventTarget {
 
   private handleProxyMessage(message: SSEMessage): void {
     switch (message.type) {
+      case "session-secret":
+        // Store session secret for authentication
+        this.sessionSecret = message.secret;
+        verboseLog(`Received session secret for authentication`);
+        break;
+
       case "websocket-connected":
         this.isWebSocketConnected = true;
         this.readyState = WebSocket.OPEN;
@@ -302,11 +309,17 @@ export class SimulatedWebsocket extends EventTarget {
   }
 
   private sendMessage(messageToSend: string): void {
+    if (!this.sessionSecret) {
+      this.handleClose(1006, "No session secret available", false);
+      return;
+    }
+
     fetch(`${this.proxyUrl}/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Session-Id": this.sessionId!,
+        "X-Session-Secret": this.sessionSecret,
       },
       body: messageToSend,
     }).catch((error) => {
@@ -407,6 +420,12 @@ export class SimulatedWebsocket extends EventTarget {
       return;
     }
 
+    if (!this.sessionSecret) {
+      // No session secret - just close locally
+      this.handleClose(1006, "No session secret available", false);
+      return;
+    }
+
     try {
       // Set up timeout in case the request fails or takes too long
       const timeoutId = setTimeout(() => {
@@ -419,6 +438,7 @@ export class SimulatedWebsocket extends EventTarget {
         headers: {
           "Content-Type": "application/json",
           "X-Session-Id": this.sessionId,
+          "X-Session-Secret": this.sessionSecret,
         },
         body: JSON.stringify({ code, reason }),
       });

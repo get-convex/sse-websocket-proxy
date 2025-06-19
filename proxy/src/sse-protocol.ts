@@ -48,6 +48,12 @@ export interface WebSocketClosedMessage {
   timestamp: number
 }
 
+export interface SessionSecretMessage {
+  type: 'session-secret'
+  secret: string // Session secret for authentication
+  timestamp: number
+}
+
 // Union type of all possible SSE messages
 export type SSEMessage =
   | ConnectedMessage
@@ -57,6 +63,7 @@ export type SSEMessage =
   | BinaryDataMessage
   | WebSocketErrorMessage
   | WebSocketClosedMessage
+  | SessionSecretMessage
 
 // Encoding functions (for proxy to create messages)
 export function encodePingMessage(timestamp: number): string {
@@ -114,6 +121,15 @@ export function encodeWebSocketClosedMessage(code: number, reason: string, wasCl
   return JSON.stringify(message)
 }
 
+export function encodeSessionSecretMessage(secret: string, timestamp: number): string {
+  const message: SessionSecretMessage = {
+    type: 'session-secret',
+    secret,
+    timestamp,
+  }
+  return JSON.stringify(message)
+}
+
 // Decoding function (for SimulatedWebSocket to parse messages)
 export function decodeSSEMessage(data: string): SSEMessage {
   try {
@@ -158,4 +174,8 @@ export function isWebSocketErrorMessage(msg: SSEMessage): msg is WebSocketErrorM
 
 export function isWebSocketClosedMessage(msg: SSEMessage): msg is WebSocketClosedMessage {
   return msg.type === 'websocket-closed'
+}
+
+export function isSessionSecretMessage(msg: SSEMessage): msg is SessionSecretMessage {
+  return msg.type === 'session-secret'
 }

@@ -47,7 +47,7 @@ describe('SSEWebSocketProxy Basic Tests', () => {
     // Start the proxy
     await proxy.start()
 
-    // Make a request to the health endpoint
+    // Test 1: Health endpoint without secret (should return minimal info)
     const response = await fetch(`http://localhost:${PROXY_PORT}/health`)
 
     expect(response.ok).toBe(true)
@@ -56,8 +56,25 @@ describe('SSEWebSocketProxy Basic Tests', () => {
     const data = (await response.json()) as any
     expect(data).toBeDefined()
     expect(data.status).toBe('healthy')
-    expect(data.activeConnections).toBe(0)
-    expect(typeof data.uptime).toBe('number')
+    // With security changes, these fields are not exposed without secret
+    expect(data.activeConnections).toBeUndefined()
+    expect(data.uptime).toBeUndefined()
+
+    // Test 2: Health endpoint with secret (should return detailed info)
+    const healthSecret = 'test-secret-123'
+    process.env.SSE_WS_PROXY_HEALTH_SECRET = healthSecret
+
+    const responseWithSecret = await fetch(`http://localhost:${PROXY_PORT}/health?secret=${healthSecret}`)
+    expect(responseWithSecret.ok).toBe(true)
+
+    const dataWithSecret = (await responseWithSecret.json()) as any
+    expect(dataWithSecret).toBeDefined()
+    expect(dataWithSecret.status).toBe('healthy')
+    expect(dataWithSecret.activeConnections).toBe(0)
+    expect(typeof dataWithSecret.uptime).toBe('number')
+
+    // Cleanup
+    delete process.env.SSE_WS_PROXY_HEALTH_SECRET
 
     // Stop the proxy
     await proxy.stop()

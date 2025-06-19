@@ -7,6 +7,7 @@ import {
   encodeBinaryDataMessage,
   encodeWebSocketErrorMessage,
   encodeWebSocketClosedMessage,
+  encodeSessionSecretMessage,
 } from './sse-protocol.js'
 import { decodeMessageRequest, decodeBinaryData, isTextMessageRequest, isBinaryMessageRequest } from './messages-protocol.js'
 
@@ -23,6 +24,7 @@ interface Client {
   sseResponse: ServerResponse
   websocket: WsWebSocket
   sessionId: string
+  sessionSecret: string
   lastActivity: number
 }
 
@@ -162,7 +164,7 @@ export class SSEWebSocketProxy {
   private setCORSHeaders(res: ServerResponse): void {
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Session-Id')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Session-Id, X-Session-Secret')
     res.setHeader('Access-Control-Allow-Credentials', 'true')
   }
 
@@ -204,10 +206,14 @@ export class SSEWebSocketProxy {
     const websocket = new WsWebSocket(wsUrl)
     websocket.binaryType = 'arraybuffer'
 
+    // Generate session secret for message authentication
+    const sessionSecret = this.generateSessionSecret()
+
     const client: Client = {
       sseResponse: res,
       websocket,
       sessionId,
+      sessionSecret,
       lastActivity: Date.now(),
     }
 
@@ -215,6 +221,9 @@ export class SSEWebSocketProxy {
 
     this.setupWebSocketHandlers(client)
     this.setupSSECleanup(req, res, sessionId)
+
+    // Send session secret as first message
+    this.sendSSEMessage(res, encodeSessionSecretMessage(sessionSecret, Date.now()))
 
     // Send keepalive pings
     const keepaliveInterval = setInterval(() => {
@@ -234,6 +243,7 @@ export class SSEWebSocketProxy {
     handler: (client: Client, data: T) => void | Promise<void>,
   ): Promise<void> {
     const sessionId = req.headers['x-session-id'] as string
+    const sessionSecret = req.headers['x-session-secret'] as string
 
     if (!sessionId) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -241,10 +251,22 @@ export class SSEWebSocketProxy {
       return
     }
 
+    if (!sessionSecret) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Missing X-Session-Secret header' }))
+      return
+    }
+
     const client = this.clients.get(sessionId)
     if (!client) {
       res.writeHead(404, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: 'Session not found' }))
+      return
+    }
+
+    if (client.sessionSecret !== sessionSecret) {
+      res.writeHead(403, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Invalid session secret' }))
       return
     }
 
@@ -278,6 +300,7 @@ export class SSEWebSocketProxy {
 
   private handleMessageSend(req: IncomingMessage, res: ServerResponse): void {
     const sessionId = req.headers['x-session-id'] as string
+    const sessionSecret = req.headers['x-session-secret'] as string
 
     if (!sessionId) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -285,10 +308,22 @@ export class SSEWebSocketProxy {
       return
     }
 
+    if (!sessionSecret) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Missing X-Session-Secret header' }))
+      return
+    }
+
     const client = this.clients.get(sessionId)
     if (!client) {
       res.writeHead(404, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: 'Session not found' }))
+      return
+    }
+
+    if (client.sessionSecret !== sessionSecret) {
+      res.writeHead(403, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Invalid session secret' }))
       return
     }
 
@@ -401,22 +436,37 @@ export class SSEWebSocketProxy {
     )
   }
 
-  private handleHealthCheck(_req: IncomingMessage, res: ServerResponse): void {
-    const activeConnections = Array.from(this.clients.entries()).map(([sessionId, client]) => ({
-      sessionId,
-      websocketState: this.getWebSocketState(client.websocket),
-      lastActivity: new Date(client.lastActivity).toISOString(),
-    }))
+  private handleHealthCheck(req: IncomingMessage, res: ServerResponse): void {
+    const url = new URL(req.url!, `http://localhost:${this.config.port}`)
+    const providedSecret = url.searchParams.get('secret')
+    const requiredSecret = process.env.SSE_WS_PROXY_HEALTH_SECRET
 
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(
-      JSON.stringify({
-        status: 'healthy',
-        activeConnections: activeConnections.length,
-        connections: activeConnections,
-        uptime: process.uptime(),
-      }),
-    )
+    // If secret is configured and provided secret matches, return detailed info
+    if (requiredSecret && providedSecret === requiredSecret) {
+      const activeConnections = Array.from(this.clients.entries()).map(([sessionId, client]) => ({
+        sessionId,
+        websocketState: this.getWebSocketState(client.websocket),
+        lastActivity: new Date(client.lastActivity).toISOString(),
+      }))
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          status: 'healthy',
+          activeConnections: activeConnections.length,
+          connections: activeConnections,
+          uptime: process.uptime(),
+        }),
+      )
+    } else {
+      // Return minimal health info only
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          status: 'healthy',
+        }),
+      )
+    }
   }
 
   private setupWebSocketHandlers(client: Client): void {
@@ -543,6 +593,12 @@ export class SSEWebSocketProxy {
     return `session-${timestamp}-${random}-${random2}`
   }
 
+  private generateSessionSecret(): string {
+    // Generate cryptographically secure session secret
+    const crypto = require('crypto')
+    return crypto.randomBytes(32).toString('hex')
+  }
+
   private getWebSocketState(ws: WsWebSocket): string {
     switch (ws.readyState) {
       case WebSocket.CONNECTING:
@@ -562,7 +618,7 @@ export class SSEWebSocketProxy {
     return {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Session-Id',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Session-Id, X-Session-Secret',
       'Access-Control-Allow-Credentials': 'true',
     }
   }

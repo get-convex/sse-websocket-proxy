@@ -196,6 +196,10 @@ describe("Invalid State Transitions", () => {
   it("should cause proxy to clean up connection when client closes during WebSocket.CONNECTING", async () => {
     const proxyPort = await getPort();
     const backendPort = await getPort();
+    const healthSecret = 'test-health-secret-123';
+
+    // Set up health secret for authenticated health checks
+    process.env.SSE_WS_PROXY_HEALTH_SECRET = healthSecret;
 
     // Start a real backend and proxy
     const testBackend = await WSTestBackend.create({ port: backendPort });
@@ -231,16 +235,18 @@ describe("Invalid State Transitions", () => {
       // Give the proxy time to clean up
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Check proxy health - should show no active connections
-      const healthResponse = await fetch(`http://localhost:${proxyPort}/health`);
+      // Check proxy health - should show no active connections after cleanup
+      const healthResponse = await fetch(`http://localhost:${proxyPort}/health?secret=${healthSecret}`);
       const healthData = await healthResponse.json();
 
+      expect(healthData.status).toBe('healthy');
       expect(healthData.activeConnections).toBe(0);
       expect(healthData.connections).toHaveLength(0);
 
       // Check that backend never received a connection (or if it did, it was cleaned up)
       expect(testBackend.hasConnection()).toBe(false);
     } finally {
+      delete process.env.SSE_WS_PROXY_HEALTH_SECRET;
       await testBackend.stop();
       await proxy.stop();
     }
@@ -249,6 +255,10 @@ describe("Invalid State Transitions", () => {
   it("should properly handle race condition between open and close", async () => {
     const proxyPort = await getPort();
     const backendPort = await getPort();
+    const healthSecret = 'test-health-secret-456';
+
+    // Set up health secret for authenticated health checks
+    process.env.SSE_WS_PROXY_HEALTH_SECRET = healthSecret;
 
     // Start a real backend and proxy
     const testBackend = await WSTestBackend.create({ port: backendPort });
@@ -306,10 +316,12 @@ describe("Invalid State Transitions", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Proxy should be clean
-      const healthResponse = await fetch(`http://localhost:${proxyPort}/health`);
+      const healthResponse = await fetch(`http://localhost:${proxyPort}/health?secret=${healthSecret}`);
       const healthData = await healthResponse.json();
+      expect(healthData.status).toBe('healthy');
       expect(healthData.activeConnections).toBe(0);
     } finally {
+      delete process.env.SSE_WS_PROXY_HEALTH_SECRET;
       await testBackend.stop();
       await proxy.stop();
     }
