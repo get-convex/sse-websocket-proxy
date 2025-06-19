@@ -10,24 +10,38 @@ Some networks can't use WebSockets, a proxy like this helps bridge the gap.
 
 # Example
 
-After building, in three separate terminals, run:
+After building (`pnpm i; pnpm run -r build`), in three separate terminals run:
+
+A WebSocket server. Install `websocat` with brew or something.
+Once the client connects, you can type here to send it messages
 
 ```
-cd proxy
-SSE_WS_PROXY_HEALTH_SECRET=a node dist/cli.js --dangerously-allow-any-host --verbose
-```
-
-```
-# install this with brew or something
 websocat -s 1234
 ```
 
+The proxy. This runs the real WebSockets that talk to the WebSocket server.
+
+```
+cd proxy
+SSE_WS_PROXY_HEALTH_SECRET=weak_secret node dist/cli.js --allow-any-localhost-port --verbose
+```
+
+The client. Be sure to use Node.js 22 like it says in the .nvmrc file.
+
 ```
 cd websocket
+node --version # should be v22.something
 node
-> const { createProxiedWebSocketClass } =  await import ("./dist/node.js");
-> const ProxiedWebSocket = createProxiedWebSocketClass("http://127.0.0.1:3001");
-> const ws = new ProxiedWebSocket('http://127.0.0.1:1234')
-> ws.onmessage = (e) => console.log(e.data)
-> ws.send('hello')
+process.env.SSE_WS_VERBOSE=1
+const { createProxiedWebSocketClass } = await import ("./dist/node.js");
+const ProxiedWebSocket = createProxiedWebSocketClass("http://127.0.0.1:3001");
+const ws = new ProxiedWebSocket('http://127.0.0.1:1234')
+ws.onmessage = (e) => console.log(e.data)
+ws.send('hello')
+```
+
+In a fourth terminal you can get info about connected sessions.
+
+```
+curl 'http://localhost:3001/health?secret=weak_secret' | jq
 ```
