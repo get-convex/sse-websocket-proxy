@@ -38,12 +38,14 @@ Usage in client:
   GET /sse?backend=ws://localhost:8080&sessionId=abc123
 
 Environment Variables:
-  SSE_WS_PROXY_VERBOSE=1   Enable verbose message logging (overrides --verbose)
+  SSE_WS_PROXY_VERBOSE=1        Enable verbose message logging (overrides --verbose)
+  SSE_WS_PROXY_HEALTH_SECRET    Secret required to access detailed health information
 
 API Endpoints:
   GET  /sse?backend=<url>&sessionId=<id>   Server-Sent Events endpoint with backend URL
   POST /messages                           Send messages to WebSocket backend  
   GET  /health                             Health check and connection status
+  GET  /health?secret=<secret>             Detailed health info (requires SSE_WS_PROXY_HEALTH_SECRET)
 
 Security:
   You must specify at least one allowed host or use --allow-any-localhost-port
