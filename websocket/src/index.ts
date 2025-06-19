@@ -76,8 +76,8 @@ export class SimulatedWebsocket extends EventTarget {
   private async connect(): Promise<void> {
     // Generate a session ID
     this.sessionId = this.generateSessionId();
-    console.log("proxy url:", this.proxyUrl);
-    console.log("backend url:", this.url);
+    verboseLog("proxy url:", this.proxyUrl);
+    verboseLog("backend url:", this.url);
 
     // Construct the SSE URL with backend parameter
     const sseUrl = new URL("/sse", this.proxyUrl);
@@ -310,6 +310,7 @@ export class SimulatedWebsocket extends EventTarget {
 
   private sendMessage(messageToSend: string): void {
     if (!this.sessionSecret) {
+      verboseLog("tried to send but no secret yet! state is", this.readyState);
       this.handleClose(1006, "No session secret available", false);
       return;
     }
@@ -421,7 +422,7 @@ export class SimulatedWebsocket extends EventTarget {
     }
 
     if (!this.sessionSecret) {
-      // No session secret - just close locally
+      verboseLog("sendCloseRequest but no session secret, readyState is", this.readyState);
       this.handleClose(1006, "No session secret available", false);
       return;
     }
