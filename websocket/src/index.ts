@@ -43,6 +43,7 @@ export class SimulatedWebsocket extends EventTarget {
   private isWebSocketConnected: boolean = false;
   private pageUnloading: boolean = false;
   private pageUnloadTracker: (() => void) | undefined;
+  private messageQueue: Promise<void> = Promise.resolve();
 
   public binaryType: "blob" | "arraybuffer";
 
@@ -315,17 +316,25 @@ export class SimulatedWebsocket extends EventTarget {
       return;
     }
 
-    fetch(`${this.proxyUrl}/messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Session-Id": this.sessionId!,
-        "X-Session-Secret": this.sessionSecret,
-      },
-      body: messageToSend,
-    }).catch((error) => {
-      // Send errors after connection establishment are protocol errors - close with 1006
-      this.handleClose(1006, `Failed to send message: ${error.message}`, false);
+    this.messageQueue = this.messageQueue.then(async () => {
+      try {
+        const response = await fetch(`${this.proxyUrl}/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Session-Id": this.sessionId!,
+            "X-Session-Secret": this.sessionSecret!,
+          },
+          body: messageToSend,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+      } catch (error: any) {
+        // Send errors after connection establishment are protocol errors - close with 1006
+        this.handleClose(1006, `Failed to send message: ${error.message}`, false);
+      }
     });
   }
 
