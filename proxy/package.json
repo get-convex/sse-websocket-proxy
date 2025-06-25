@@ -54,12 +54,12 @@
   ],
   "dependencies": {
     "commander": "^14.0.0",
-    "get-port": "^7.1.0",
     "ws": "^8.18.2"
   },
   "devDependencies": {
     "@types/node": "^22.15.30",
     "@types/ws": "^8.18.1",
+    "get-port": "^7.1.0",
     "tsdown": "^0.1.0",
     "tsx": "^4.7.1",
     "typescript": "5.8.2",
