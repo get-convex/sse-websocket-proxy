@@ -38,5 +38,5 @@
 
     "customConditions": ["sse-ws-proxy-development"]
   },
-  "exclude": ["vitest.config.ts"]
+  "exclude": ["vitest.config.ts", "tsdown.config.ts"]
 }
