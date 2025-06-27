@@ -5,8 +5,7 @@ const packageVersion = process.env.npm_package_version ?? JSON.parse(readFileSyn
 
 export default defineConfig({
   entry: ['src/index.ts', 'src/cli.ts', 'src/ws-test-backend.ts', 'src/sse-protocol.ts', 'src/messages-protocol.ts'],
-  exports: true, // update package.json
-  format: ['commonjs', 'esm'],
+  format: ['esm', 'cjs'],
   platform: 'node',
   dts: {},
   exports: {

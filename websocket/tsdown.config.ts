@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 const packageVersion =
   process.env.npm_package_version ?? JSON.parse(readFileSync("./package.json", "utf-8")).version;
 
-export default [
-  defineConfig({
+export default defineConfig([
+  {
     entry: ["src/index.ts"],
     format: ["cjs", "esm"],
     dts: {
@@ -20,8 +20,8 @@ export default [
       npm_package_version: packageVersion,
     },
     attw: true,
-  }),
-  defineConfig({
+  },
+  {
     entry: ["src/node.ts"],
     format: ["cjs", "esm"], // this is a CLI tool
     dts: {
@@ -35,5 +35,5 @@ export default [
     env: {
       npm_package_version: packageVersion,
     },
-  }),
-];
+  },
+]);
