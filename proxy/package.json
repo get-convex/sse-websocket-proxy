@@ -60,9 +60,34 @@
     "@types/node": "^22.15.30",
     "@types/ws": "^8.18.1",
     "get-port": "^7.1.0",
-    "tsdown": "^0.1.0",
+    "tsdown": "^0.12.9",
     "tsx": "^4.7.1",
     "typescript": "5.8.2",
     "vitest": "^2.0.0"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      },
+      "./cli": {
+        "import": "./dist/cli.js",
+        "require": "./dist/cli.cjs"
+      },
+      "./messages-protocol": {
+        "import": "./dist/messages-protocol.js",
+        "require": "./dist/messages-protocol.cjs"
+      },
+      "./sse-protocol": {
+        "import": "./dist/sse-protocol.js",
+        "require": "./dist/sse-protocol.cjs"
+      },
+      "./ws-test-backend": {
+        "import": "./dist/ws-test-backend.js",
+        "require": "./dist/ws-test-backend.cjs"
+      },
+      "./package.json": "./package.json"
+    }
   }
 }
